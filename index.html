@@ -202,6 +202,7 @@ const VAC_DAYS = 25;
 const WEEK6_DAYS = 5;
 const SICK_BONUS_MAX = 10000;
 const SICK_BONUS_PER_DAY = 1000;
+const NO_SICK_BONUS_EMP = ['ernisa','ditte','agnes','rie','lotte','marianne','frederik','jacob'];
 
 // ============================================================
 // STATE
@@ -274,10 +275,11 @@ function calcStats(empId, reqs){
   const ownSickDays= r.filter(x=>x.type==='sick'&&!x.archived&&x.sickType!=='barn').reduce((s,x)=>s+x.days,0);
   const otHours = r.filter(x=>x.type==='overtime'&&x.status!=='rejected').reduce((s,x)=>s+(x.hours||0),0);
   const flexHours= r.filter(x=>x.type==='flex'&&x.status==='approved').reduce((s,x)=>s+(x.hours||0),0);
-  const bonus   = Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY);
+  const hasSickBonus = !NO_SICK_BONUS_EMP.includes(empId);
+  const bonus   = hasSickBonus ? Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY) : null;
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
   const flexBank = overtimeBank!==null?Math.max(0,overtimeBank-flexHours):null;
-  return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used,w6Left:Math.max(0,empWeek6Hours-w6Used),w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,overtimeBank,flexBank};
+  return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used,w6Left:Math.max(0,empWeek6Hours-w6Used),w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank};
 }
 
 // ============================================================
@@ -498,8 +500,7 @@ function renderDashboard(stats, myReqs){
     <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#e24b4a'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Sygedage</div>
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${stats.sickDays}</div>
-      <div style="font-size:12px;color:#2d7a1f;font-weight:500;margin-top:6px">+ ${stats.bonus.toLocaleString('da-DK')} kr i bonus</div>
-      <div style="font-size:11px;color:#aaa;margin-top:2px">Heraf ${stats.ownSickDays} dag${stats.ownSickDays!==1?'e':''} egen sygdom</div>
+      ${stats.hasSickBonus?`<div style="font-size:12px;color:#2d7a1f;font-weight:500;margin-top:6px">+ ${stats.bonus.toLocaleString('da-DK')} kr i bonus</div><div style="font-size:11px;color:#aaa;margin-top:2px">Heraf ${stats.ownSickDays} dag${stats.ownSickDays!==1?'e':''} egen sygdom</div>`:`<div style="font-size:12px;color:#aaa;margin-top:6px">${stats.sickDays} dag${stats.sickDays!==1?'e':''} i alt</div>`}
       <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#e24b4a;border-radius:2px;width:${Math.min(100,Math.round((stats.sickDays/10)*100))}%"></div></div>
     </div>
   </div>
@@ -672,7 +673,14 @@ function renderSaldoTab(stats, myReqs){
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:${sickPct}%;background:#e24b4a"></div></div>
     <div style="font-size:11px;color:#aaa;margin-top:5px">${stats.sickDays} sygedag${stats.sickDays!==1?'e':''} registreret i perioden</div>
-  </div>
+  </div>`:''}
+  ${!stats.hasSickBonus?`<div class="card">
+    <div class="sec-title">Sygedage</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Egen sygdom</div><div class="stat-value" style="color:#1a4fa8">${stats.ownSickDays}</div></div>
+      <div class="stat-card"><div class="stat-label">Barn syg</div><div class="stat-value" style="color:#888">${stats.sickDays-stats.ownSickDays}</div></div>
+    </div>
+  </div>`:``}
   <div class="card">
     <div class="sec-title">Overarbejde og afspadsering</div>
     ${stats.overtimeBank!==null?`
