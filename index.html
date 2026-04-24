@@ -2,6 +2,7 @@
 <html lang="da">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HR Selvbetjening – Tandklinikken</title>
 <style>
@@ -131,9 +132,9 @@
 <div id="toast"></div>
 
 <!-- Firebase SDKs -->
-<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/compat/app.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/compat/auth.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/compat/firestore.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
 <script>
 // ============================================================
