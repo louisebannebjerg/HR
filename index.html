@@ -279,7 +279,9 @@ function calcStats(empId, reqs){
   const bonus   = hasSickBonus ? Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY) : null;
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
   const flexBank = overtimeBank!==null?Math.max(0,overtimeBank-flexHours):null;
-  return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used,w6Left:Math.max(0,empWeek6Hours-w6Used),w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank};
+  const w6UsedR=Math.round(w6Used*100)/100;
+  const w6LeftR=Math.round(Math.max(0,empWeek6Hours-w6Used)*100)/100;
+  return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used:w6UsedR,w6Left:w6LeftR,w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank};
 }
 
 // ============================================================
