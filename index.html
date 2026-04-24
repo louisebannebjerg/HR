@@ -1,5 +1,4 @@
 
-
 <!DOCTYPE html>
 <html lang="da">
 <head>
@@ -133,9 +132,9 @@
 <div id="toast"></div>
 
 <!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/compat/app.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/compat/auth.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/compat/firestore.min.js"></script>
 
 <script>
 // ============================================================
@@ -272,12 +271,13 @@ function calcStats(empId, reqs){
   const vacUsed = r.filter(x=>x.type==='vacation'&&x.status==='approved').reduce((s,x)=>s+x.days,0);
   const w6Used  = r.filter(x=>x.type==='week6'&&x.status==='approved').reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
   const sickDays= r.filter(x=>x.type==='sick'&&!x.archived).reduce((s,x)=>s+x.days,0);
+  const ownSickDays= r.filter(x=>x.type==='sick'&&!x.archived&&x.sickType!=='barn').reduce((s,x)=>s+x.days,0);
   const otHours = r.filter(x=>x.type==='overtime'&&x.status!=='rejected').reduce((s,x)=>s+(x.hours||0),0);
   const flexHours= r.filter(x=>x.type==='flex'&&x.status==='approved').reduce((s,x)=>s+(x.hours||0),0);
-  const bonus   = Math.max(0, SICK_BONUS_MAX - sickDays*SICK_BONUS_PER_DAY);
+  const bonus   = Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY);
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
   const flexBank = overtimeBank!==null?Math.max(0,overtimeBank-flexHours):null;
-  return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used,w6Left:Math.max(0,empWeek6Hours-w6Used),w6Budget:empWeek6Hours,sickDays,otHours,flexHours,bonus,overtimeBank,flexBank};
+  return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used,w6Left:Math.max(0,empWeek6Hours-w6Used),w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,overtimeBank,flexBank};
 }
 
 // ============================================================
@@ -488,19 +488,20 @@ function renderDashboard(stats, myReqs){
       <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1d9e75;border-radius:2px;width:${Math.min(100,Math.round((stats.w6Left/5)*100))}%"></div></div>
     </div>
 
-    <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#e24b4a'" onmouseout="this.style.borderColor='#e5e5e0'">
-      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Sygedage</div>
-      <div style="font-size:32px;font-weight:700;color:${stats.sickDays>0?'#a32020':'#2d7a1f'};line-height:1">${stats.sickDays}</div>
-      <div style="font-size:12px;color:#aaa;margin-top:6px">= ${stats.bonus.toLocaleString('da-DK')} kr i bonus</div>
-      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#e24b4a;border-radius:2px;width:${Math.min(100,Math.round((stats.sickDays/10)*100))}%"></div></div>
-    </div>
-
     ${hasOvertimeBank?`<div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#1a4fa8'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Afspadsering</div>
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${stats.flexBank}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">timer til gode</div>
       <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1a4fa8;border-radius:2px;width:${stats.overtimeBank>0?Math.min(100,Math.round((stats.flexBank/stats.overtimeBank)*100)):0}%"></div></div>
     </div>`:''}
+
+    <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#e24b4a'" onmouseout="this.style.borderColor='#e5e5e0'">
+      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Sygedage</div>
+      <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${stats.sickDays}</div>
+      <div style="font-size:12px;color:#2d7a1f;font-weight:500;margin-top:6px">+ ${stats.bonus.toLocaleString('da-DK')} kr i bonus</div>
+      <div style="font-size:11px;color:#aaa;margin-top:2px">Heraf ${stats.ownSickDays} dag${stats.ownSickDays!==1?'e':''} egen sygdom</div>
+      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#e24b4a;border-radius:2px;width:${Math.min(100,Math.round((stats.sickDays/10)*100))}%"></div></div>
+    </div>
   </div>
 
   <div style="display:grid;grid-template-columns:${upcomingVac?'1fr 1fr':'1fr'};gap:12px;margin-bottom:14px">
@@ -514,6 +515,7 @@ function renderDashboard(stats, myReqs){
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Hurtige handlinger</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button onclick="goToReg('vacation')" style="background:#6c63d4;color:white;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Søg ferie</button>
+        ${hasOvertimeBank?`<button onclick="goToReg('flex')" style="background:#e8f5e0;color:#2d7a1f;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Registrer afspadsering</button>`:''}
         ${hasOvertimeBank?`<button onclick="goToReg('overtime')" style="background:#e8f0fd;color:#1a4fa8;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Registrer overarbejde</button>`:''}
         <button onclick="switchTab('history')" style="background:#f0f0eb;color:#1a1a1a;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">Se mine anmodninger</button>
       </div>
@@ -662,11 +664,11 @@ function renderSaldoTab(stats, myReqs){
   </div>
   <div class="card">
     <div class="sec-title">Sygdomsbonus</div>
-    <div class="info-box info-box-warning">Bonusperiode: 1. december – 30. november. For hver sygedag mister du 1.000 kr. Maks. bonus: 10.000 kr.</div>
+    <div class="info-box info-box-warning">Bonusperiode: 1. december – 30. november. 1.000 kr. fratrækkes pr. sygedag. Man kan ikke gå i minus.</div>
     <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Sygedage (periode)</div><div class="stat-value">${stats.sickDays}</div></div>
+      <div class="stat-card"><div class="stat-label">Sygedage (periode)</div><div class="stat-value" style="color:#1a4fa8">${stats.sickDays}</div></div>
       <div class="stat-card"><div class="stat-label">Maks. bonus</div><div class="stat-value">10.000 kr</div></div>
-      <div class="stat-card"><div class="stat-label">Din saldo</div><div class="stat-value" style="color:${stats.bonus>0?'#2d7a1f':'#a32020'}">${stats.bonus.toLocaleString('da-DK')} kr</div></div>
+      <div class="stat-card"><div class="stat-label">Din saldo</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus.toLocaleString('da-DK')} kr</div></div>
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:${sickPct}%;background:#e24b4a"></div></div>
     <div style="font-size:11px;color:#aaa;margin-top:5px">${stats.sickDays} sygedag${stats.sickDays!==1?'e':''} registreret i perioden</div>
@@ -908,12 +910,12 @@ function renderAdminDash(){
     </div>
     <div onclick="switchTab('sick')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#f5b8b8'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Syge i dag</div>
-      <div style="font-size:32px;font-weight:700;color:${todaySick.length>0?'#a32020':'#2d7a1f'};line-height:1">${todaySick.length}</div>
+      <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${todaySick.length}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">${todaySick.length>0?todaySick.map(r=>r.userName.split(' ')[0]).join(', '):'ingen syge'}</div>
     </div>
     <div onclick="switchTab('sick')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#f5b8b8'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Sygedage denne måned</div>
-      <div style="font-size:32px;font-weight:700;color:${monthSick.length>0?'#a32020':'#2d7a1f'};line-height:1">${monthSick.reduce((s,r)=>s+r.days,0)}</div>
+      <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${monthSick.reduce((s,r)=>s+r.days,0)}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">på tværs af ${[...new Set(monthSick.map(r=>r.userId))].length} medarbejder${[...new Set(monthSick.map(r=>r.userId))].length!==1?'e':''}</div>
     </div>
     <div onclick="switchTab('employees')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#6c63d4'" onmouseout="this.style.borderColor='#e5e5e0'">
@@ -975,7 +977,7 @@ function renderAdminDash(){
             <span style="font-size:13px;font-weight:500;color:#1a1a1a">${e.name.split(' ')[0]}</span>
           </div>
           <div style="text-align:right">
-            <div style="font-size:13px;font-weight:600;color:#a32020">${e.sickDays} dag${e.sickDays!==1?'e':''}</div>
+            <div style="font-size:13px;font-weight:600;color:#1a4fa8">${e.sickDays} dag${e.sickDays!==1?'e':''}</div>
             <div style="font-size:11px;color:#aaa">${e.bonus.toLocaleString('da-DK')} kr</div>
           </div>
         </div>`;}).join('')}
@@ -1039,8 +1041,8 @@ function renderAdminEmployees(){
         <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:#2d7a1f">${stats.vacLeft}</div></div>
         <div class="stat-card"><div class="stat-label">6. ferieuge brugt</div><div class="stat-value">${stats.w6Used}t</div></div>
         <div class="stat-card"><div class="stat-label">6. ferieuge tilbage</div><div class="stat-value" style="color:#2d7a1f">${stats.w6Left}t</div></div>
-        <div class="stat-card"><div class="stat-label">Sygedage</div><div class="stat-value" style="color:#a32020">${stats.sickDays}</div></div>
-        <div class="stat-card"><div class="stat-label">Sygdomsbonus</div><div class="stat-value" style="color:${stats.bonus>0?'#2d7a1f':'#a32020'}">${stats.bonus.toLocaleString('da-DK')} kr</div></div>
+        <div class="stat-card"><div class="stat-label">Sygedage</div><div class="stat-value" style="color:#1a4fa8">${stats.sickDays}</div></div>
+        <div class="stat-card"><div class="stat-label">Sygdomsbonus</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus.toLocaleString('da-DK')} kr</div></div>
         <div class="stat-card"><div class="stat-label">Overarb. timer</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
         ${stats.overtimeBank!==null?`<div class="stat-card"><div class="stat-label">Optjent afspads.</div><div class="stat-value" style="color:#2d7a1f">${stats.overtimeBank}t</div></div>`:''}
         <div class="stat-card"><div class="stat-label">Afspads. brugt</div><div class="stat-value">${stats.flexHours}t</div></div>
