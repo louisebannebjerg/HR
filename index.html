@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="da">
 <head>
@@ -278,7 +279,7 @@ function calcStats(empId, reqs){
   const hasSickBonus = !NO_SICK_BONUS_EMP.includes(empId);
   const bonus   = hasSickBonus ? Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY) : null;
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
-  const flexBank = overtimeBank!==null?Math.max(0,overtimeBank-flexHours):null;
+  const flexBank = overtimeBank!==null?Math.round((overtimeBank-flexHours)*100)/100:null;
   const w6UsedR=Math.round(w6Used*100)/100;
   const w6LeftR=Math.round(Math.max(0,empWeek6Hours-w6Used)*100)/100;
   return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used:w6UsedR,w6Left:w6LeftR,w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank};
@@ -494,9 +495,9 @@ function renderDashboard(stats, myReqs){
 
     ${hasOvertimeBank?`<div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#1a4fa8'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Afspadsering</div>
-      <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${stats.flexBank}</div>
-      <div style="font-size:12px;color:#aaa;margin-top:6px">timer til gode</div>
-      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1a4fa8;border-radius:2px;width:${stats.overtimeBank>0?Math.min(100,Math.round((stats.flexBank/stats.overtimeBank)*100)):0}%"></div></div>
+      <div style="font-size:32px;font-weight:700;color:${stats.flexBank<0?'#a32020':'#1a4fa8'};line-height:1">${stats.flexBank}</div>
+      <div style="font-size:12px;color:#aaa;margin-top:6px">${stats.flexBank<0?'timer i minus':'timer til gode'}</div>
+      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:${stats.flexBank<0?'#a32020':'#1a4fa8'};border-radius:2px;width:${stats.overtimeBank>0?Math.max(0,Math.min(100,Math.round((stats.flexBank/stats.overtimeBank)*100))):0}%"></div></div>
     </div>`:''}
 
     <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#e24b4a'" onmouseout="this.style.borderColor='#e5e5e0'">
@@ -683,7 +684,7 @@ function renderSaldoTab(stats, myReqs){
       <div class="stat-card"><div class="stat-label">Overarb. timer registreret</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
       <div class="stat-card"><div class="stat-label">Optjent afspadsering</div><div class="stat-value" style="color:#2d7a1f">${stats.overtimeBank}t</div></div>
       <div class="stat-card"><div class="stat-label">Brugt afspadsering</div><div class="stat-value">${stats.flexHours}t</div></div>
-      <div class="stat-card"><div class="stat-label">Afspadserings-bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':'#a32020'}">${stats.flexBank}t</div></div>
+      <div class="stat-card"><div class="stat-label">Afspadserings-bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':stats.flexBank<0?'#a32020':'#1a1a1a'}">${stats.flexBank}t</div></div>
     </div>`:`
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-label">Overarb. timer i alt</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
@@ -1048,7 +1049,7 @@ function renderAdminEmployees(){
         <div class="stat-card"><div class="stat-label">Overarb. timer</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
         ${stats.overtimeBank!==null?`<div class="stat-card"><div class="stat-label">Optjent afspads.</div><div class="stat-value" style="color:#2d7a1f">${stats.overtimeBank}t</div></div>`:''}
         <div class="stat-card"><div class="stat-label">Afspads. brugt</div><div class="stat-value">${stats.flexHours}t</div></div>
-        ${stats.flexBank!==null?`<div class="stat-card"><div class="stat-label">Afspads. bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':'#a32020'}">${stats.flexBank}t</div></div>`:''}
+        ${stats.flexBank!==null?`<div class="stat-card"><div class="stat-label">Afspads. bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':stats.flexBank<0?'#a32020':'#1a1a1a'}">${stats.flexBank}t</div></div>`:''}
       </div>
     </div>
     <div class="card">
@@ -1064,7 +1065,7 @@ function renderAdminEmployees(){
         </select>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Fra dato</label><input type="date" id="admin-rfrom"></div>
+        <div class="form-group"><label class="form-label">Fra dato</label><input type="date" id="admin-rfrom" onchange="autoFillAdminToDate()"></div>
         <div class="form-group"><label class="form-label">Til dato</label><input type="date" id="admin-rto"></div>
       </div>
       <div id="admin-hours-field" style="display:none" class="form-group">
@@ -1118,14 +1119,20 @@ function onAdminTypeChange(){
   const hf=document.getElementById('admin-hours-field');
   if(hf)hf.style.display=(t==='overtime'||t==='flex'||t==='week6')?'block':'none';}
 
+function autoFillAdminToDate(){
+  const from=document.getElementById('admin-rfrom')?.value;
+  const rto=document.getElementById('admin-rto');
+  if(from&&rto&&!rto.value)rto.value=from;}
+
 async function adminSubmitReq(empId){
   const emp=getEmpById(empId);
   const type=document.getElementById('admin-rtype')?.value;
   const from=document.getElementById('admin-rfrom')?.value;
-  const to=document.getElementById('admin-rto')?.value;
+  let to=document.getElementById('admin-rto')?.value;
   const note=document.getElementById('admin-rnote')?.value||'';
   const hours=parseFloat(document.getElementById('admin-rhours')?.value||0);
-  if(!from||!to){toast('Vælg datoer');return;}
+  if(!from){toast('Vælg fra-dato');return;}
+  if(!to)to=from;
   if(new Date(to)<new Date(from)){toast('Slutdato skal være efter startdato');return;}
   const days=calcDays(from,to);
   const req={userId:empId,userName:emp.name,type,from,to,days,
