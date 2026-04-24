@@ -1358,16 +1358,26 @@ async function saveWeek6Hours(empId, hours){
   const emp=EMPLOYEES.find(e=>e.id===empId);
   if(!emp)return;
   emp.week6Hours=parseFloat(hours)||0;
-  try{await window.storage.set('week6hours_'+empId, hours);}catch(e){}
+  try{
+    await db.collection('settings').doc('week6hours').set(
+      {[empId]: parseFloat(hours)||0},
+      {merge: true}
+    );
+  }catch(e){console.error('saveWeek6Hours error:',e);}
   toast('Gemt ✓');}
 
 async function loadWeek6Hours(){
-  for(const emp of EMPLOYEES){
-    try{
-      const r=await window.storage.get('week6hours_'+emp.id);
-      if(r)emp.week6Hours=parseFloat(r.value)||0;
-    }catch(e){}
-  }}
+  try{
+    const doc=await db.collection('settings').doc('week6hours').get();
+    if(doc.exists){
+      const data=doc.data();
+      for(const emp of EMPLOYEES){
+        if(data[emp.id]!==undefined){
+          emp.week6Hours=parseFloat(data[emp.id])||0;
+        }
+      }
+    }
+  }catch(e){console.error('loadWeek6Hours error:',e);}}
 
 function generateSickPDF(){
   const now=new Date();
