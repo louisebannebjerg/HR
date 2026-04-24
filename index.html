@@ -669,7 +669,7 @@ function renderSaldoTab(stats, myReqs){
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-label">Sygedage (periode)</div><div class="stat-value" style="color:#1a4fa8">${stats.sickDays}</div></div>
       <div class="stat-card"><div class="stat-label">Maks. bonus</div><div class="stat-value">10.000 kr</div></div>
-      <div class="stat-card"><div class="stat-label">Din saldo</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus.toLocaleString('da-DK')} kr</div></div>
+      <div class="stat-card"><div class="stat-label">Din saldo</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus!==null?stats.bonus.toLocaleString('da-DK')+' kr':'–'}</div></div>
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:${sickPct}%;background:#e24b4a"></div></div>
     <div style="font-size:11px;color:#aaa;margin-top:5px">${stats.sickDays} sygedag${stats.sickDays!==1?'e':''} registreret i perioden</div>
@@ -986,7 +986,7 @@ function renderAdminDash(){
           </div>
           <div style="text-align:right">
             <div style="font-size:13px;font-weight:600;color:#1a4fa8">${e.sickDays} dag${e.sickDays!==1?'e':''}</div>
-            <div style="font-size:11px;color:#aaa">${e.bonus.toLocaleString('da-DK')} kr</div>
+            ${e.hasSickBonus?`<div style="font-size:11px;color:#aaa">${e.bonus.toLocaleString('da-DK')} kr</div>`:''}
           </div>
         </div>`;}).join('')}
       ${empSickStats.filter(e=>e.sickDays===0).length===emps.length?`<div style="font-size:13px;color:#2d7a1f;padding:8px">Ingen sygedage registreret endnu</div>`:''}
@@ -1050,7 +1050,7 @@ function renderAdminEmployees(){
         <div class="stat-card"><div class="stat-label">6. ferieuge brugt</div><div class="stat-value">${stats.w6Used}t</div></div>
         <div class="stat-card"><div class="stat-label">6. ferieuge tilbage</div><div class="stat-value" style="color:#2d7a1f">${stats.w6Left}t</div></div>
         <div class="stat-card"><div class="stat-label">Sygedage</div><div class="stat-value" style="color:#1a4fa8">${stats.sickDays}</div></div>
-        <div class="stat-card"><div class="stat-label">Sygdomsbonus</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus.toLocaleString('da-DK')} kr</div></div>
+        ${stats.hasSickBonus?`<div class="stat-card"><div class="stat-label">Sygdomsbonus</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus.toLocaleString('da-DK')} kr</div></div>`:''}
         <div class="stat-card"><div class="stat-label">Overarb. timer</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
         ${stats.overtimeBank!==null?`<div class="stat-card"><div class="stat-label">Optjent afspads.</div><div class="stat-value" style="color:#2d7a1f">${stats.overtimeBank}t</div></div>`:''}
         <div class="stat-card"><div class="stat-label">Afspads. brugt</div><div class="stat-value">${stats.flexHours}t</div></div>
@@ -1113,7 +1113,7 @@ function renderAdminEmployees(){
         </div>
         <div class="mini-stats">
           <div class="mini-stat">Ferie<span>${stats.vacUsed}/${VAC_DAYS}</span></div>
-          <div class="mini-stat">Sygedage<span style="color:#a32020">${stats.sickDays}</span></div>
+          <div class="mini-stat">Sygedage<span style="color:#1a4fa8">${stats.sickDays}</span></div>
           <div class="mini-stat">Overtid<span style="color:#1a4fa8">${stats.otHours}t</span></div>
         </div>
       </div>`;}).join('')}
