@@ -664,23 +664,15 @@ function renderSaldoTab(stats, myReqs){
     </div>
   </div>
   <div class="card">
-    <div class="sec-title">Sygdomsbonus</div>
-    <div class="info-box info-box-warning">Bonusperiode: 1. december – 30. november. 1.000 kr. fratrækkes pr. sygedag. Man kan ikke gå i minus.</div>
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Sygedage (periode)</div><div class="stat-value" style="color:#1a4fa8">${stats.sickDays}</div></div>
-      <div class="stat-card"><div class="stat-label">Maks. bonus</div><div class="stat-value">10.000 kr</div></div>
-      <div class="stat-card"><div class="stat-label">Din saldo</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus!==null?stats.bonus.toLocaleString('da-DK')+' kr':'–'}</div></div>
-    </div>
-    <div class="progress-bar"><div class="progress-fill" style="width:${sickPct}%;background:#e24b4a"></div></div>
-    <div style="font-size:11px;color:#aaa;margin-top:5px">${stats.sickDays} sygedag${stats.sickDays!==1?'e':''} registreret i perioden</div>
-  </div>`:''}
-  ${!stats.hasSickBonus?`<div class="card">
-    <div class="sec-title">Sygedage</div>
+    <div class="sec-title">${stats.hasSickBonus?"Sygdomsbonus":"Sygedage"}</div>
+    ${stats.hasSickBonus?"<div class=\"info-box info-box-warning\">Bonusperiode: 1. december – 30. november. 1.000 kr. fratrækkes pr. sygedag (kun egen sygdom). Man kan ikke gå i minus.</div>":""}
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-label">Egen sygdom</div><div class="stat-value" style="color:#1a4fa8">${stats.ownSickDays}</div></div>
       <div class="stat-card"><div class="stat-label">Barn syg</div><div class="stat-value" style="color:#888">${stats.sickDays-stats.ownSickDays}</div></div>
+      ${stats.hasSickBonus?"<div class=\"stat-card\"><div class=\"stat-label\">Din saldo</div><div class=\"stat-value\" style=\"color:#2d7a1f\">"+(stats.bonus||0).toLocaleString("da-DK")+" kr</div></div>":""}
     </div>
-  </div>`:''}
+    ${stats.hasSickBonus?"<div class=\"progress-bar\"><div class=\"progress-fill\" style=\"width:"+sickPct+"%;background:#e24b4a\"></div></div><div style=\"font-size:11px;color:#aaa;margin-top:5px\">"+stats.sickDays+" sygedag"+(stats.sickDays!==1?"e":"")+" registreret i perioden</div>":""}
+  </div>
   <div class="card">
     <div class="sec-title">Overarbejde og afspadsering</div>
     ${stats.overtimeBank!==null?`
