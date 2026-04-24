@@ -1304,7 +1304,7 @@ function renderYearEnd(){
   const emps=EMPLOYEES.filter(e=>!e.isAdmin);
   const rows=emps.map(emp=>{
     const s=calcStats(emp.id,allRequests);
-    return{...emp,sickDays:s.sickDays,bonus:s.bonus};
+    return{...emp,sickDays:s.sickDays,ownSickDays:s.ownSickDays,bonus:s.bonus,hasSickBonus:s.hasSickBonus};
   });
   const prevPeriodKey='sickPeriod_'+(now.getMonth()<11?now.getFullYear()-1:now.getFullYear());
 
@@ -1331,13 +1331,13 @@ function renderYearEnd(){
       <tbody>
         ${rows.map(r=>`<tr style="border-bottom:1px solid #f5f5f0">
           <td style="padding:9px 6px;font-weight:500;color:#1a1a1a">${r.name}</td>
-          <td style="text-align:center;padding:9px 6px;color:${r.sickDays>0?'#a32020':'#2d7a1f'};font-weight:600">${r.sickDays}</td>
-          <td style="text-align:right;padding:9px 6px;font-weight:600;color:${r.bonus>0?'#2d7a1f':'#a32020'}">${r.bonus.toLocaleString('da-DK')} kr</td>
+          <td style="text-align:center;padding:9px 6px;color:#1a4fa8;font-weight:600">${r.sickDays}${r.ownSickDays!==r.sickDays?' ('+r.ownSickDays+' egen)':''}</td>
+          <td style="text-align:right;padding:9px 6px;font-weight:600;color:${r.hasSickBonus?(r.bonus>0?'#2d7a1f':'#a32020'):'#aaa'}">${r.hasSickBonus?r.bonus.toLocaleString('da-DK')+' kr':'–'}</td>
         </tr>`).join('')}
         <tr style="border-top:2px solid #e5e5e0;background:#f9f9f7">
           <td style="padding:9px 6px;font-weight:600">I alt</td>
           <td style="text-align:center;padding:9px 6px;font-weight:600">${rows.reduce((s,r)=>s+r.sickDays,0)}</td>
-          <td style="text-align:right;padding:9px 6px;font-weight:600">${rows.reduce((s,r)=>s+r.bonus,0).toLocaleString('da-DK')} kr</td>
+          <td style="text-align:right;padding:9px 6px;font-weight:600">${rows.filter(r=>r.hasSickBonus).reduce((s,r)=>s+r.bonus,0).toLocaleString('da-DK')} kr</td>
         </tr>
       </tbody>
     </table>
@@ -1382,12 +1382,12 @@ function generateSickPDF(){
   const emps=EMPLOYEES.filter(e=>!e.isAdmin);
   const rows=emps.map(emp=>{
     const s=calcStats(emp.id,allRequests);
-    return{name:emp.name,sickDays:s.sickDays,bonus:s.bonus};
+    return{name:emp.name,sickDays:s.sickDays,ownSickDays:s.ownSickDays,bonus:s.bonus,hasSickBonus:s.hasSickBonus};
   });
   const periodEnd=now.getMonth()===10?now.getFullYear():now.getFullYear()-(now.getMonth()<11?1:0);
   const periodStart=periodEnd-1;
   const total=rows.reduce((s,r)=>s+r.sickDays,0);
-  const totalBonus=rows.reduce((s,r)=>s+r.bonus,0);
+  const totalBonus=rows.filter(r=>r.hasSickBonus).reduce((s,r)=>s+r.bonus,0);
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <style>
@@ -1415,9 +1415,9 @@ function generateSickPDF(){
     <tbody>
       ${rows.map(r=>`<tr>
         <td>${r.name}</td>
-        <td class="c ${r.sickDays>0?'red':'green'}">${r.sickDays}</td>
-        <td class="c red">${r.sickDays>0?(r.sickDays*1000).toLocaleString('da-DK')+' kr':'–'}</td>
-        <td class="r ${r.bonus>0?'green':'red'}">${r.bonus.toLocaleString('da-DK')} kr</td>
+        <td class="c" style="color:#1a4fa8">${r.sickDays}${r.ownSickDays!==r.sickDays?' ('+r.ownSickDays+' egen)':''}</td>
+        <td class="c red">${r.hasSickBonus&&r.ownSickDays>0?(r.ownSickDays*1000).toLocaleString('da-DK')+' kr':'–'}</td>
+        <td class="r ${r.hasSickBonus?(r.bonus>0?'green':'red'):''}">${r.hasSickBonus?r.bonus.toLocaleString('da-DK')+' kr':'Ingen bonus'}</td>
       </tr>`).join('')}
       <tr class="total">
         <td>I alt</td>
