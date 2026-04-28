@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="da">
 <head>
@@ -170,25 +169,25 @@ window.onerror = function(msg, src, line) {
 // ============================================================
 const EMPLOYEES = [
   // Kan logge ind selv
-  {id:'rikke',    name:'Rikke',     email:'rikkekatholm@hotmail.com',   initials:'RI', canLogin:true,  isAdmin:false},
-  {id:'bente',    name:'Bente',     email:'benteh2201@gmail.com',        initials:'BE', canLogin:true,  isAdmin:false},
-  {id:'jeannette',name:'Jeannette', email:'jeannettebang@outlook.dk',    initials:'JE', canLogin:true,  isAdmin:false},
-  {id:'merle',    name:'Merle',     email:'hugme@live.dk',               initials:'ME', canLogin:true,  isAdmin:false},
-  {id:'emma',     name:'Emma',      email:'emmadalsgaard87@gmail.com',   initials:'EM', canLogin:true,  isAdmin:false},
-  {id:'grethe',   name:'Grethe',    email:'horntand@mail.dk',            initials:'GR', canLogin:true,  isAdmin:false},
-  {id:'anette',   name:'Anette',    email:'horntand@mail.dk',            initials:'AN', canLogin:true,  isAdmin:false},
-  {id:'pernille', name:'Pernille',  email:'pernilleand_ersen@hotmail.com',initials:'PE', canLogin:true,  isAdmin:false},
-  {id:'ernisa',   name:'Ernisa',    email:'ernisak@outlook.com',         initials:'ER', canLogin:true,  isAdmin:false},
-  {id:'ditte',    name:'Ditte',     email:'ditte_clara@hotmail.com',     initials:'DI', canLogin:true,  isAdmin:false},
-  {id:'agnes',    name:'Agnes',     email:'horntand@mail.dk',            initials:'AG', canLogin:true,  isAdmin:false},
-  {id:'rie',      name:'Rie',       email:'fberntjensen@gmail.com',      initials:'RI2',canLogin:true,  isAdmin:false},
-  {id:'lotte',    name:'Lotte',     email:'lotteedue@gmail.com',         initials:'LO', canLogin:true,  isAdmin:false},
-  {id:'marianne', name:'Marianne',  email:'lmrodskov@gmail.com',         initials:'MA', canLogin:true,  isAdmin:false},
+  {id:'rikke',    name:'Rikke',     email:'rikkekatholm@hotmail.com',    initials:'RI', canLogin:true,  isAdmin:false, bday:'1989-12-12', started:'2019-10-01'},
+  {id:'bente',    name:'Bente',     email:'benteh2201@gmail.com',         initials:'BE', canLogin:true,  isAdmin:false, bday:'1962-01-22', started:'1997-01-01'},
+  {id:'jeannette',name:'Jeannette', email:'jeannettebang@outlook.dk',     initials:'JE', canLogin:true,  isAdmin:false, bday:'1968-04-30', started:'1997-08-01'},
+  {id:'merle',    name:'Merle',     email:'hugme@live.dk',                initials:'ME', canLogin:true,  isAdmin:false, bday:'1975-07-03', started:'2013-11-25'},
+  {id:'emma',     name:'Emma',      email:'emmadalsgaard87@gmail.com',    initials:'EM', canLogin:true,  isAdmin:false, bday:'1987-10-12', started:'2022-02-01'},
+  {id:'grethe',   name:'Grethe',    email:'horntand@mail.dk',             initials:'GR', canLogin:true,  isAdmin:false, bday:'1965-01-13', started:'2020-09-01'},
+  {id:'anette',   name:'Anette',    email:'horntand@mail.dk',             initials:'AN', canLogin:true,  isAdmin:false, bday:'1965-03-15', started:'2025-10-01'},
+  {id:'pernille', name:'Pernille',  email:'pernilleand_ersen@hotmail.com',initials:'PE', canLogin:true,  isAdmin:false, bday:'1995-11-20', started:'2021-01-25'},
+  {id:'ernisa',   name:'Ernisa',    email:'ernisak@outlook.com',          initials:'ER', canLogin:true,  isAdmin:false, bday:'1994-10-31', started:'2022-08-01'},
+  {id:'ditte',    name:'Ditte',     email:'ditte_clara@hotmail.com',      initials:'DI', canLogin:true,  isAdmin:false, bday:'1983-06-07', started:'2021-04-28'},
+  {id:'agnes',    name:'Agnes',     email:'horntand@mail.dk',             initials:'AG', canLogin:true,  isAdmin:false, bday:'1996-04-23', started:'2025-08-11'},
+  {id:'rie',      name:'Rie',       email:'fberntjensen@gmail.com',       initials:'RI2',canLogin:true,  isAdmin:false, bday:'1966-08-21', started:'1996-02-01'},
+  {id:'lotte',    name:'Lotte',     email:'lotteedue@gmail.com',          initials:'LO', canLogin:true,  isAdmin:false, bday:'1970-02-07', started:'1997-05-05'},
+  {id:'marianne', name:'Marianne',  email:'lmrodskov@gmail.com',          initials:'MA', canLogin:true,  isAdmin:false, bday:'1961-12-17', started:'2005-12-19'},
   // Styres kun af admin
-  {id:'frederik', name:'Frederik',  email:'',                            initials:'FR', canLogin:false, isAdmin:false},
-  {id:'jacob',    name:'Jacob',     email:'hrnissen@gmail.com',          initials:'JA', canLogin:false, isAdmin:false},
+  {id:'frederik', name:'Frederik',  email:'',                             initials:'FR', canLogin:false, isAdmin:false, bday:'1967-02-10', started:null},
+  {id:'jacob',    name:'Jacob',     email:'hrnissen@gmail.com',           initials:'JA', canLogin:false, isAdmin:false, bday:'1988-03-09', started:null},
   // Admin
-  {id:'louise',   name:'Louise',    email:'louise.bannebjerg@gmail.com', initials:'LB', canLogin:true,  isAdmin:true, isAlsoEmployee:true, vacDays:25, week6Days:5},
+  {id:'louise',   name:'Louise',    email:'louise.bannebjerg@gmail.com',  initials:'LB', canLogin:true,  isAdmin:true,  isAlsoEmployee:true, vacDays:25, week6Days:5, bday:null, started:null},
 ];
 
 const AVATAR_COLORS = [
@@ -228,6 +227,72 @@ function toast(msg, dur=2500){
 function calcDays(a,b){if(!a||!b)return 0;return Math.max(0,Math.round((new Date(b)-new Date(a))/86400000)+1)}
 function fmt(d){if(!d)return'';return new Date(d).toLocaleDateString('da-DK',{day:'2-digit',month:'short',year:'numeric'})}
 function typeLabel(t){return{vacation:'Ferie',week6:'6. ferieuge',fritvalg:'Fritvalgskonto',overtime:'Overarbejde',flex:'Afspadsering',sick:'Sygedag','emp-other':'Andet fravær'}[t]||t}
+// ============================================================
+// BIRTHDAY & JUBILEE HELPERS
+// ============================================================
+const JUBILEE_YEARS = [10, 25, 30, 40, 50];
+const ROUND_BIRTHDAYS = [30, 40, 50, 60, 70, 75, 80];
+
+function getDayOfYear(date){
+  const start = new Date(date.getFullYear(), 0, 0);
+  return Math.floor((date - start) / 86400000);
+}
+
+function getNextBirthday(bdayStr){
+  if(!bdayStr) return null;
+  const now = new Date();
+  const bday = new Date(bdayStr);
+  let next = new Date(now.getFullYear(), bday.getMonth(), bday.getDate());
+  if(next < now) next = new Date(now.getFullYear()+1, bday.getMonth(), bday.getDate());
+  const age = next.getFullYear() - bday.getFullYear();
+  const daysUntil = Math.round((next - now) / 86400000);
+  const isRound = ROUND_BIRTHDAYS.includes(age);
+  return {date: next, age, daysUntil, isRound, dateStr: next.toLocaleDateString('da-DK',{day:'2-digit',month:'long'})};
+}
+
+function getNextJubilee(startedStr){
+  if(!startedStr) return null;
+  const now = new Date();
+  const started = new Date(startedStr);
+  const yearsWorked = (now - started) / (365.25 * 86400000);
+  for(const y of JUBILEE_YEARS){
+    if(yearsWorked < y){
+      const jubDate = new Date(started.getFullYear()+y, started.getMonth(), started.getDate());
+      const daysUntil = Math.round((jubDate - now) / 86400000);
+      return {years: y, date: jubDate, daysUntil, dateStr: jubDate.toLocaleDateString('da-DK',{day:'2-digit',month:'long',year:'numeric'})};
+    }
+  }
+  return null;
+}
+
+function getYearsWorked(startedStr){
+  if(!startedStr) return null;
+  const now = new Date();
+  const started = new Date(startedStr);
+  return Math.floor((now - started) / (365.25 * 86400000));
+}
+
+function getUpcomingEvents(days=90){
+  const events = [];
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + days * 86400000);
+  for(const emp of EMPLOYEES.filter(e=>!e.isAdmin)){
+    if(emp.bday){
+      const nb = getNextBirthday(emp.bday);
+      if(nb && nb.date <= cutoff){
+        events.push({type:'birthday', emp, ...nb});
+      }
+    }
+    if(emp.started){
+      const nj = getNextJubilee(emp.started);
+      if(nj && nj.date <= cutoff){
+        events.push({type:'jubilee', emp, ...nj});
+      }
+    }
+  }
+  return events.sort((a,b)=>a.date-b.date);
+}
+
 const FRITVALG_EMP=['rikke', 'bente', 'jeannette', 'merle', 'emma', 'grethe', 'anette', 'pernille'];
 const OVERTIME_EMP=['rikke','bente','jeannette','merle','emma','grethe','anette','pernille','rie','ditte','ernisa','agnes'];
 
@@ -279,7 +344,7 @@ function calcStats(empId, reqs){
   const hasSickBonus = !NO_SICK_BONUS_EMP.includes(empId);
   const bonus   = hasSickBonus ? Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY) : null;
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
-  const flexBank = overtimeBank!==null?Math.round((overtimeBank-flexHours)*100)/100:null;
+  const flexBank = overtimeBank!==null?Math.max(0,overtimeBank-flexHours):null;
   const w6UsedR=Math.round(w6Used*100)/100;
   const w6LeftR=Math.round(Math.max(0,empWeek6Hours-w6Used)*100)/100;
   return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used:w6UsedR,w6Left:w6LeftR,w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank};
@@ -495,9 +560,9 @@ function renderDashboard(stats, myReqs){
 
     ${hasOvertimeBank?`<div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#1a4fa8'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Afspadsering</div>
-      <div style="font-size:32px;font-weight:700;color:${stats.flexBank<0?'#a32020':'#1a4fa8'};line-height:1">${stats.flexBank}</div>
-      <div style="font-size:12px;color:#aaa;margin-top:6px">${stats.flexBank<0?'timer i minus':'timer til gode'}</div>
-      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:${stats.flexBank<0?'#a32020':'#1a4fa8'};border-radius:2px;width:${stats.overtimeBank>0?Math.max(0,Math.min(100,Math.round((stats.flexBank/stats.overtimeBank)*100))):0}%"></div></div>
+      <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${stats.flexBank}</div>
+      <div style="font-size:12px;color:#aaa;margin-top:6px">timer til gode</div>
+      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1a4fa8;border-radius:2px;width:${stats.overtimeBank>0?Math.min(100,Math.round((stats.flexBank/stats.overtimeBank)*100)):0}%"></div></div>
     </div>`:''}
 
     <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#e24b4a'" onmouseout="this.style.borderColor='#e5e5e0'">
@@ -507,6 +572,15 @@ function renderDashboard(stats, myReqs){
       <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#e24b4a;border-radius:2px;width:${Math.min(100,Math.round((stats.sickDays/10)*100))}%"></div></div>
     </div>
   </div>
+
+  ${(()=>{const upcoming=getUpcomingEvents(60);return upcoming.length>0?`<div onclick="switchTab('birthdays')" style="background:linear-gradient(135deg,#667eea,#764ba2);border:none;border-radius:14px;padding:18px;cursor:pointer;margin-bottom:14px">
+    <div style="font-size:11px;color:rgba(255,255,255,0.8);font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Kommende begivenheder</div>
+    ${upcoming.slice(0,3).map(ev=>{
+      const label=ev.type==='birthday'?(ev.isRound?'🎂 Rund fødselsdag':'🎂 Fødselsdag'):'🏆 Jubilæum';
+      const days=ev.daysUntil===0?'I dag!':ev.daysUntil===1?'I morgen':'Om '+ev.daysUntil+' dage';
+      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.2)"><span style="font-size:13px;color:white;font-weight:500">'+ev.emp.name+' – '+label+'</span><span style="font-size:12px;color:rgba(255,255,255,0.8)">'+days+'</span></div>';
+    }).join('')}
+  </div>`:'';})()}
 
   <div style="display:grid;grid-template-columns:${upcomingVac?'1fr 1fr':'1fr'};gap:12px;margin-bottom:14px">
     ${upcomingVac?`<div style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px">
@@ -684,7 +758,7 @@ function renderSaldoTab(stats, myReqs){
       <div class="stat-card"><div class="stat-label">Overarb. timer registreret</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
       <div class="stat-card"><div class="stat-label">Optjent afspadsering</div><div class="stat-value" style="color:#2d7a1f">${stats.overtimeBank}t</div></div>
       <div class="stat-card"><div class="stat-label">Brugt afspadsering</div><div class="stat-value">${stats.flexHours}t</div></div>
-      <div class="stat-card"><div class="stat-label">Afspadserings-bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':stats.flexBank<0?'#a32020':'#1a1a1a'}">${stats.flexBank}t</div></div>
+      <div class="stat-card"><div class="stat-label">Afspadserings-bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':'#a32020'}">${stats.flexBank}t</div></div>
     </div>`:`
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-label">Overarb. timer i alt</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
@@ -734,6 +808,7 @@ async function renderAdmin(){
   if(tab==='admindash') content=renderAdminDash();
   else if(tab==='requests') content=renderAdminRequests();
   else if(tab==='employees') content=renderAdminEmployees();
+  else if(tab==='birthdays') content=renderBirthdays();
   else if(tab==='sick') content=renderAdminSick();
   else if(tab==='otherfravær') content=renderAdminOtherAbsence();
   else if(tab==='manage') content=renderAdminManage();
@@ -743,6 +818,7 @@ async function renderAdmin(){
     {id:'admindash',label:'Overblik'},
     {id:'requests',label:'Anmodninger'},
     {id:'employees',label:'Medarbejdere'},
+    {id:'birthdays',label:'🎂 Fødselsdage'},
     {id:'sick',label:'Sygdom'},
     {id:'otherfravær',label:'Andet fravær'},
     {id:'manage',label:'Administrer'},
@@ -871,6 +947,90 @@ async function submitMyProfile(){
   allRequests.push(req);
   toast('Registreret ✓');
   setTimeout(()=>render(),500);}
+
+function renderBirthdays(){
+  const now = new Date();
+  const emps = EMPLOYEES.filter(e=>!e.isAdmin&&e.bday);
+  const months = ['Januar','Februar','Marts','April','Maj','Juni','Juli','August','September','Oktober','November','December'];
+
+  // Sort by birthday month/day
+  const sorted = [...emps].sort((a,b)=>{
+    const da = new Date(a.bday), db = new Date(b.bday);
+    const am = da.getMonth()*100+da.getDate(), bm = db.getMonth()*100+db.getDate();
+    return am - bm;
+  });
+
+  // Upcoming events next 90 days
+  const upcoming = getUpcomingEvents(90);
+
+  const monthGroups = {};
+  for(const emp of sorted){
+    const d = new Date(emp.bday);
+    const m = d.getMonth();
+    if(!monthGroups[m]) monthGroups[m] = [];
+    monthGroups[m].push(emp);
+  }
+
+  const upcomingHtml = upcoming.length > 0 ? `
+  <div class="card" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border:none;color:white;margin-bottom:16px">
+    <div style="font-size:15px;font-weight:600;margin-bottom:14px;color:white">🎉 Kommende begivenheder – næste 90 dage</div>
+    ${upcoming.map(ev=>{
+      const ci=empIndex(ev.emp.id);
+      const {bg,tc}=empColor(ci>=0?ci:0);
+      const label = ev.type==='birthday'
+        ? (ev.isRound ? `🎂 Fylder ${ev.age} år` : `🎂 Fødselsdag (${ev.age} år)`)
+        : `🏆 ${ev.years}-års jubilæum`;
+      const days = ev.daysUntil===0?'I dag!':ev.daysUntil===1?'I morgen':`Om ${ev.daysUntil} dage`;
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.2)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="av" style="background:${bg};color:${tc}">${ev.emp.initials}</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:white">${ev.emp.name}</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.8)">${label} · ${ev.dateStr}</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.2);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:white;white-space:nowrap">${days}</div>
+      </div>`;
+    }).join('')}
+  </div>` : '';
+
+  const monthsHtml = Object.keys(monthGroups).sort((a,b)=>a-b).map(m=>{
+    const empsInMonth = monthGroups[m];
+    return`<div class="card" style="margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:#6c63d4;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">${months[m]}</div>
+      ${empsInMonth.map(emp=>{
+        const ci=empIndex(emp.id);
+        const {bg,tc}=empColor(ci>=0?ci:0);
+        const bday = new Date(emp.bday);
+        const age = now.getFullYear() - bday.getFullYear();
+        const thisYearBday = new Date(now.getFullYear(), bday.getMonth(), bday.getDate());
+        const nextAge = thisYearBday < now ? age+1 : age;
+        const isRound = ROUND_BIRTHDAYS.includes(nextAge);
+        const yearsWorked = emp.started ? getYearsWorked(emp.started) : null;
+        const nextJub = emp.started ? getNextJubilee(emp.started) : null;
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="av" style="background:${bg};color:${tc}">${emp.initials}</div>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:#1a1a1a">${emp.name}
+                ${isRound?`<span style="background:#fef3e0;color:#9a5f0a;font-size:10px;padding:2px 8px;border-radius:20px;margin-left:6px;font-weight:600">Fylder ${nextAge}! 🎂</span>`:''}
+              </div>
+              <div style="font-size:12px;color:#aaa;margin-top:2px">${bday.getDate()}. ${months[bday.getMonth()].toLowerCase()} · ${nextAge} år i ${now.getFullYear()}</div>
+              ${yearsWorked!==null?`<div style="font-size:11px;color:#aaa">${yearsWorked} år på klinikken${nextJub?` · Næste jubilæum: ${nextJub.years} år (${nextJub.dateStr})`:'  🌟 Jubilæum overskredet!'}</div>`:''}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:22px;font-weight:700;color:#6c63d4">${bday.getDate()}/${bday.getMonth()+1}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+
+  return upcomingHtml + `
+  <div style="font-size:13px;color:#aaa;margin-bottom:14px">Jubilæum fejres ved 10, 25, 30, 40 og 50 års ansættelse</div>
+  ${monthsHtml}`;
+}
 
 function renderAdminDash(){
   const now=new Date();
@@ -1049,7 +1209,7 @@ function renderAdminEmployees(){
         <div class="stat-card"><div class="stat-label">Overarb. timer</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
         ${stats.overtimeBank!==null?`<div class="stat-card"><div class="stat-label">Optjent afspads.</div><div class="stat-value" style="color:#2d7a1f">${stats.overtimeBank}t</div></div>`:''}
         <div class="stat-card"><div class="stat-label">Afspads. brugt</div><div class="stat-value">${stats.flexHours}t</div></div>
-        ${stats.flexBank!==null?`<div class="stat-card"><div class="stat-label">Afspads. bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':stats.flexBank<0?'#a32020':'#1a1a1a'}">${stats.flexBank}t</div></div>`:''}
+        ${stats.flexBank!==null?`<div class="stat-card"><div class="stat-label">Afspads. bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':'#a32020'}">${stats.flexBank}t</div></div>`:''}
       </div>
     </div>
     <div class="card">
@@ -1065,7 +1225,7 @@ function renderAdminEmployees(){
         </select>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Fra dato</label><input type="date" id="admin-rfrom" onchange="autoFillAdminToDate()"></div>
+        <div class="form-group"><label class="form-label">Fra dato</label><input type="date" id="admin-rfrom"></div>
         <div class="form-group"><label class="form-label">Til dato</label><input type="date" id="admin-rto"></div>
       </div>
       <div id="admin-hours-field" style="display:none" class="form-group">
@@ -1119,20 +1279,14 @@ function onAdminTypeChange(){
   const hf=document.getElementById('admin-hours-field');
   if(hf)hf.style.display=(t==='overtime'||t==='flex'||t==='week6')?'block':'none';}
 
-function autoFillAdminToDate(){
-  const from=document.getElementById('admin-rfrom')?.value;
-  const rto=document.getElementById('admin-rto');
-  if(from&&rto&&!rto.value)rto.value=from;}
-
 async function adminSubmitReq(empId){
   const emp=getEmpById(empId);
   const type=document.getElementById('admin-rtype')?.value;
   const from=document.getElementById('admin-rfrom')?.value;
-  let to=document.getElementById('admin-rto')?.value;
+  const to=document.getElementById('admin-rto')?.value;
   const note=document.getElementById('admin-rnote')?.value||'';
   const hours=parseFloat(document.getElementById('admin-rhours')?.value||0);
-  if(!from){toast('Vælg fra-dato');return;}
-  if(!to)to=from;
+  if(!from||!to){toast('Vælg datoer');return;}
   if(new Date(to)<new Date(from)){toast('Slutdato skal være efter startdato');return;}
   const days=calcDays(from,to);
   const req={userId:empId,userName:emp.name,type,from,to,days,
