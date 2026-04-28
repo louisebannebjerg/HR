@@ -368,12 +368,12 @@ function calcStats(empId, reqs){
   const empVacDays=empDef?.vacDays||VAC_DAYS;
   const empWeek6Hours=empDef?.week6Hours||0;
   const r = reqs.filter(x=>x.userId===empId);
-  const vacUsed = r.filter(x=>x.type==='vacation'&&x.status==='approved').reduce((s,x)=>s+x.days,0);
-  const w6Used  = r.filter(x=>x.type==='week6'&&x.status==='approved').reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
+  const vacUsed = r.filter(x=>x.type==='vacation'&&x.status==='approved'&&!x.archived).reduce((s,x)=>s+x.days,0);
+  const w6Used  = r.filter(x=>x.type==='week6'&&x.status==='approved'&&!x.archived).reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
   const sickDays= r.filter(x=>x.type==='sick'&&!x.archived).reduce((s,x)=>s+x.days,0);
   const ownSickDays= r.filter(x=>x.type==='sick'&&!x.archived&&x.sickType!=='barn').reduce((s,x)=>s+x.days,0);
-  const otHours = r.filter(x=>x.type==='overtime'&&x.status!=='rejected').reduce((s,x)=>s+(x.hours||0),0);
-  const flexHours= r.filter(x=>x.type==='flex'&&x.status==='approved').reduce((s,x)=>s+(x.hours||0),0);
+  const otHours = r.filter(x=>x.type==='overtime'&&x.status!=='rejected'&&!x.archived).reduce((s,x)=>s+(x.hours||0),0);
+  const flexHours= r.filter(x=>x.type==='flex'&&x.status==='approved'&&!x.archived).reduce((s,x)=>s+(x.hours||0),0);
   const hasSickBonus = !NO_SICK_BONUS_EMP.includes(empId);
   const bonus   = hasSickBonus ? Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY) : null;
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
@@ -570,7 +570,7 @@ async function render(){
 // ============================================================
 async function renderEmployee(){
   const stats = calcStats(currentUser.id, allRequests);
-  const myReqs = allRequests.filter(r=>r.userId===currentUser.id);
+  const myReqs = allRequests.filter(r=>r.userId===currentUser.id&&!r.archived);
   let content='';
   if(!tab) tab='dashboard';
   if(tab==='dashboard') content=renderDashboard(stats, myReqs);
@@ -1481,7 +1481,7 @@ function renderAdminDash(){
 
 function renderAdminRequests(){
   const pending=allRequests.filter(r=>r.status==='pending').length;
-  let filtered=filter==='all'?allRequests:allRequests.filter(r=>r.status===filter);
+  let filtered=(filter==='all'?allRequests:allRequests.filter(r=>r.status===filter)).filter(r=>!r.archived);
   filtered=[...filtered].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   return`${pending>0?`<div class="info-box info-box-warning">${pending} anmodning${pending!==1?'er':''} afventer godkendelse</div>`:''}
   <div class="filter-row">
@@ -1518,7 +1518,7 @@ async function renderAdminEmployees(){
     const ci=empIndex(adminEmpId);
     const {bg,tc}=empColor(ci>=0?ci:0);
     const stats=calcStats(adminEmpId,allRequests);
-    const empReqs=[...allRequests.filter(r=>r.userId===adminEmpId)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    const empReqs=[...allRequests.filter(r=>r.userId===adminEmpId&&!r.archived)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
     window._adminNote = await loadAdminNote(adminEmpId);
     return`<div class="back-btn" onclick="goBack()">← Tilbage til oversigt</div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
