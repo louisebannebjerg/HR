@@ -217,6 +217,7 @@ const VAC_DAYS = 25;
 const WEEK6_DAYS = 5;
 const SICK_BONUS_MAX = 10000;
 const SICK_BONUS_PER_DAY = 1000;
+const BIRTHDAY_ACCESS_EMP = ['rikke'];
 const NO_SICK_BONUS_EMP = ['ernisa','ditte','agnes','rie','lotte','marianne','frederik','jacob'];
 
 // ============================================================
@@ -527,14 +528,17 @@ async function renderEmployee(){
   else if(tab==='reg') content=renderRegTab();
   else if(tab==='saldo') content=renderSaldoTab(stats, myReqs);
   else if(tab==='history') content=renderHistTab(myReqs);
+  else if(tab==='birthdays'&&BIRTHDAY_ACCESS_EMP.includes(currentUser.id)) content=renderBirthdays();
   else if(tab==='password') content=renderPasswordTab();
-  setHTML(topbar()+tabsHtml([
+  const empTabs = [
     {id:'dashboard',label:'Overblik'},
     {id:'reg',label:'Registrer'},
     {id:'saldo',label:'Min saldo'},
     {id:'history',label:'Mine anmodninger'},
+    ...(BIRTHDAY_ACCESS_EMP.includes(currentUser.id)?[{id:'birthdays',label:'🎂 Fødselsdage'}]:[]),
     {id:'password',label:'Skift kodeord'},
-  ])+`<div class="content">${content}</div>`);}
+  ];
+  setHTML(topbar()+tabsHtml(empTabs)+`<div class="content">${content}</div>`);}
 
 function renderDashboard(stats, myReqs){
   const ci=empIndex(currentUser.id);
