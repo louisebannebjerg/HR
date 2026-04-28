@@ -405,6 +405,7 @@ auth.onAuthStateChanged(async user => {
     currentUser = emp;
     await loadAllRequests();
     await loadWeek6Hours();
+    await loadEmpDates();
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
     render();
   } else {
@@ -1254,6 +1255,18 @@ function renderAdminEmployees(){
       <div>
         <div style="font-size:17px;font-weight:600">${emp.name}</div>
         <div style="font-size:12px;color:#aaa">${emp.email||'Ingen e-mail registreret'}${!emp.canLogin?'<span class="tag-no-login">Styres af admin</span>':''}</div>
+      <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="font-size:11px;color:#aaa;font-weight:500">Fødselsdato:</label>
+          <input type="date" value="${emp.bday||''}" style="font-size:12px;border:1px solid #e0e0da;border-radius:6px;padding:3px 8px;color:#1a1a1a"
+            onchange="saveEmpDates('${emp.id}','bday',this.value);EMPLOYEES.find(e=>e.id==='${emp.id}').bday=this.value;toast('Gemt ✓')">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="font-size:11px;color:#aaa;font-weight:500">Ansat dato:</label>
+          <input type="date" value="${emp.started||''}" style="font-size:12px;border:1px solid #e0e0da;border-radius:6px;padding:3px 8px;color:#1a1a1a"
+            onchange="saveEmpDates('${emp.id}','started',this.value);EMPLOYEES.find(e=>e.id==='${emp.id}').started=this.value;toast('Gemt ✓')">
+        </div>
+      </div>
       </div>
     </div>
     <div class="card">
@@ -1600,6 +1613,28 @@ async function loadWeek6Hours(){
       }
     }
   }catch(e){console.error('loadWeek6Hours error:',e);}}
+
+async function saveEmpDates(empId, field, value){
+  try{
+    await db.collection('settings').doc('empdates').set(
+      {[empId+'_'+field]: value},
+      {merge: true}
+    );
+  }catch(e){console.error('saveEmpDates error:',e);}
+}
+
+async function loadEmpDates(){
+  try{
+    const doc=await db.collection('settings').doc('empdates').get();
+    if(doc.exists){
+      const data=doc.data();
+      for(const emp of EMPLOYEES){
+        if(data[emp.id+'_bday']!==undefined) emp.bday=data[emp.id+'_bday']||emp.bday;
+        if(data[emp.id+'_started']!==undefined) emp.started=data[emp.id+'_started']||emp.started;
+      }
+    }
+  }catch(e){console.error('loadEmpDates error:',e);}
+}
 
 function generateSickPDF(){
   const now=new Date();
