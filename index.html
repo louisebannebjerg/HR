@@ -979,7 +979,7 @@ async function renderAdmin(){
 
 function renderAdminSidebar(){
   const emps=EMPLOYEES.filter(e=>!e.isAdmin);
-  const isOpen=localStorage.getItem('sidebarOpen')!=='false';
+  const isOpen=localStorage.getItem('sidebarOpen')==='true';
   const isToolsOpen=localStorage.getItem('sidebarToolsOpen')!=='false';
   const adminTools=[
     {id:'adminmessages',label:'💬 Beskeder'+(window._messages&&window._messages.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length>0?' ('+window._messages.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length+')':'')},
@@ -1028,7 +1028,7 @@ function toggleSidebarTools(){
   render();}
 
 function toggleSidebar(){
-  const current=localStorage.getItem('sidebarOpen')!=='false';
+  const current=localStorage.getItem('sidebarOpen')==='true';
   localStorage.setItem('sidebarOpen',(!current).toString());
   render();}
 
