@@ -567,6 +567,7 @@ async function renderEmployee(){
   else if(tab==='saldo') content=renderSaldoTab(stats, myReqs);
   else if(tab==='history') content=renderHistTab(myReqs);
   else if(tab==='messages') content=await renderEmpMessages();
+  else if(tab==='aktivitet') content=renderAktivitet(myReqs);
   else if(tab==='birthdays'&&BIRTHDAY_ACCESS_EMP.includes(currentUser.id)) content=renderBirthdays();
   else if(tab==='password') content=renderPasswordTab();
   const unreadCount = window._messages ? window._messages.filter(m=>m.toId===currentUser.id&&!(m.readBy||[]).includes(currentUser.id)).length : 0;
@@ -576,6 +577,7 @@ async function renderEmployee(){
     {id:'saldo',label:'📊 Min saldo'},
     {id:'history',label:'📋 Mine anmodninger'},
     {id:'messages',label:'💬 Beskeder'+(unreadCount>0?' ('+unreadCount+')':'')},
+    {id:'aktivitet',label:'📅 Aktivitet'},
     ...(BIRTHDAY_ACCESS_EMP.includes(currentUser.id)?[{id:'birthdays',label:'🎂 Fødselsdage'}]:[]),
     {id:'password',label:'🔑 Skift kodeord'},
   ];
@@ -841,6 +843,38 @@ async function sendEmpMessage(){
   window._messages = await loadMessages(currentUser.id, false);
   toast('Besked sendt ✓');
   setTimeout(()=>render(),300);}
+
+function renderAktivitet(myReqs){
+  const actTab=window._actTab||'all';
+  const tabs=[
+    {key:'all',label:'Alle'},
+    {key:'vacation',label:'🏖 Ferie'},
+    {key:'other',label:'📋 Andet fravær'},
+    {key:'overtime',label:'⏱ Overarbejde'},
+    {key:'flex',label:'😌 Afspadsering'},
+  ];
+  let filtered=myReqs;
+  if(actTab==='vacation') filtered=myReqs.filter(r=>r.type==='vacation'||r.type==='week6'||r.type==='fritvalg');
+  else if(actTab==='other') filtered=myReqs.filter(r=>r.type==='emp-other'||r.type==='other'||r.type==='course');
+  else if(actTab==='overtime') filtered=myReqs.filter(r=>r.type==='overtime');
+  else if(actTab==='flex') filtered=myReqs.filter(r=>r.type==='flex');
+  const sorted=[...filtered].sort((a,b)=>new Date(b.from)-new Date(a.from));
+
+  return`<div class="card">
+    <div class="sec-title">Aktivitetsoversigt</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      ${tabs.map(t=>`<button onclick="setActTab('${t.key}')" style="font-size:12px;padding:5px 13px;border-radius:20px;border:1px solid ${actTab===t.key?'#6c63d4':'#e0e0da'};background:${actTab===t.key?'#6c63d4':'white'};color:${actTab===t.key?'white':'#666'};cursor:pointer;font-weight:500">${t.label}</button>`).join('')}
+    </div>
+    ${sorted.length===0
+      ?'<div style="text-align:center;padding:2rem;color:#aaa;font-size:13px">Ingen registreringer</div>'
+      :sorted.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f5f5f0">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:#1a1a1a">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
+          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.hours?'· '+r.hours+'t':r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
+        </div>
+        <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+      </div>`).join('')}
+  </div>`;}
 
 function renderSaldoTab(stats, myReqs){
   const vacPct=Math.min(100,Math.round((stats.vacUsed/VAC_DAYS)*100));
