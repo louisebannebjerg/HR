@@ -360,7 +360,7 @@ function calcStats(empId, reqs){
   const hasSickBonus = !NO_SICK_BONUS_EMP.includes(empId);
   const bonus   = hasSickBonus ? Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY) : null;
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
-  const flexBank = overtimeBank!==null?Math.max(0,overtimeBank-flexHours):null;
+  const flexBank = overtimeBank!==null?Math.round((overtimeBank-flexHours)*100)/100:null;
   const w6UsedR=Math.round(w6Used*100)/100;
   const w6LeftR=Math.round(Math.max(0,empWeek6Hours-w6Used)*100)/100;
   return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used:w6UsedR,w6Left:w6LeftR,w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank};
@@ -901,6 +901,7 @@ async function renderAdmin(){
   let content='';
   if(tab==='admindash') content=renderAdminDash();
   else if(tab==='requests') content=renderAdminRequests();
+  else if(tab==='adminmessages') content=await renderAdminMessages();
   else if(tab==='employees') content=await renderAdminEmployees();
   else if(tab==='birthdays') content=renderBirthdays();
   else if(tab==='sick') content=renderAdminSick();
