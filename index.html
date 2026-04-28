@@ -1677,49 +1677,84 @@ function absenceBadgeClass(r){
   return'b-pending';}
 
 function renderAdminSick(){
-  const absReqs=[...allRequests.filter(r=>r.type==='sick')].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const allEmps=EMPLOYEES.filter(e=>!e.isAdmin);
-  return`<div class="card">
-    <div class="sec-title">Registrer sygdom</div>
-    <div class="form-group">
-      <label class="form-label">Medarbejder</label>
-      <select id="sick-emp">${allEmps.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Type</label>
-      <select id="sick-type" onchange="onAbsenceTypeChange()">
-        <option value="sick-own">Egen sygdom</option>
-        <option value="sick-barn">Barn syg</option>
-      </select>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Fra dato</label><input type="date" id="sick-from" onchange="autoFillSickTo()"></div>
-      <div class="form-group"><label class="form-label">Til dato</label><input type="date" id="sick-to"></div>
-    </div>
-    <div class="form-group"><label class="form-label">Bemærkning (valgfri)</label><textarea id="sick-note" placeholder="Eventuel kommentar..."></textarea></div>
-    <button class="btn btn-primary" onclick="submitSick()">Registrer sygdom</button>
-  </div>
-  ${absReqs.length>0?`<div class="card">
-    <div class="sec-title">Sygeregistreringer</div>
-    ${absReqs.map(r=>{
-      const emp=getEmpById(r.userId);
-      const ci=empIndex(r.userId);
-      const {bg,tc}=empColor(ci>=0?ci:0);
-      return`<div class="req-item">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-            <div class="av" style="width:24px;height:24px;background:${bg};color:${tc};font-size:10px">${emp?.initials||'?'}</div>
-            <span style="font-size:13px;font-weight:600">${r.userName}</span>
+  const selectedEmpId=window._sickSelectedEmp||allEmps[0]?.id;
+  const empStats=allEmps.map(emp=>{
+    const sickReqs=allRequests.filter(r=>r.type==='sick'&&r.userId===emp.id&&!r.archived);
+    const own=sickReqs.filter(r=>r.sickType!=='barn').reduce((s,r)=>s+r.days,0);
+    const barn=sickReqs.filter(r=>r.sickType==='barn').reduce((s,r)=>s+r.days,0);
+    return{emp,own,barn,total:own+barn,reqs:sickReqs.sort((a,b)=>new Date(b.from)-new Date(a.from))};
+  });
+  const selected=empStats.find(e=>e.emp.id===selectedEmpId)||empStats[0];
+  const selCi=empIndex(selected?.emp.id);
+  const {bg:selBg,tc:selTc}=empColor(selCi>=0?selCi:0);
+
+  return`
+  <div style="display:grid;grid-template-columns:220px 1fr;gap:14px">
+    <div class="card" style="padding:0;overflow:hidden;align-self:start">
+      <div style="padding:10px 14px;font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f0f0eb">Medarbejdere</div>
+      ${empStats.map(({emp,own,barn,total})=>{
+        const ci=empIndex(emp.id);
+        const {bg,tc}=empColor(ci>=0?ci:0);
+        const isSel=emp.id===selectedEmpId;
+        return`<div onclick="window._sickSelectedEmp='${emp.id}';render()" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;background:${isSel?'#f0f0fb':'white'};border-bottom:1px solid #f5f5f0;transition:background 0.1s">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:28px;height:28px;border-radius:50%;background:${bg};color:${tc};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600">${emp.initials}</div>
+            <span style="font-size:13px;font-weight:${isSel?600:400};color:${isSel?'#6c63d4':'#1a1a1a'}">${emp.name.split(' ')[0]}</span>
           </div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
-          ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
+          ${total>0
+            ?`<div style="text-align:right"><div style="font-size:13px;font-weight:600;color:#1a4fa8">${total}d</div><div style="font-size:10px;color:#aaa">${own>0?own+' eg.':''} ${barn>0?barn+' b.':''}</div></div>`
+            :`<div style="font-size:11px;color:#ddd">–</div>`}
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div>
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div class="av" style="background:${selBg};color:${selTc}">${selected?.emp.initials}</div>
+          <div>
+            <div style="font-size:15px;font-weight:600">${selected?.emp.name}</div>
+            <div style="font-size:12px;color:#aaa">${selected?.own} dag${selected?.own!==1?'e':''} egen sygdom · ${selected?.barn} dag${selected?.barn!==1?'e':''} barn syg</div>
+          </div>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-          <span class="badge ${absenceBadgeClass(r)}">${absenceLabel(r)}</span>
+        <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Registrer sygdom</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Type</label>
+            <select id="sick-type">
+              <option value="sick-own">Egen sygdom</option>
+              <option value="sick-barn">Barn syg</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Fra dato</label>
+            <input type="date" id="sick-from" onchange="autoFillSickTo()">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Til dato</label>
+            <input type="date" id="sick-to">
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">Bemærkning (valgfri)</label><textarea id="sick-note" placeholder="Eventuel kommentar..." style="min-height:50px"></textarea></div>
+        <input type="hidden" id="sick-emp" value="${selected?.emp.id}">
+        <button class="btn btn-primary" onclick="submitSick()">Registrer sygdom</button>
+      </div>
+
+      ${selected?.reqs.length>0?`<div class="card">
+        <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Registreringer</div>
+        ${selected.reqs.map(r=>`<div class="req-item">
+          <div>
+            <div style="font-size:13px;font-weight:500;color:#1a1a1a">${r.sickType==='barn'?'🧒 Barn syg':'🤒 Egen sygdom'}</div>
+            <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
+            ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
+          </div>
           <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
-        </div>
-      </div>`}).join('')}
-  </div>`:''}`;}
+        </div>`).join('')}
+      </div>`:'<div class="card"><div class="empty">Ingen sygedage registreret</div></div>'}
+    </div>
+  </div>`;}
+
 
 function autoFillAdminToDate(){
   const from=document.getElementById('admin-rfrom')?.value;
@@ -1839,8 +1874,15 @@ function renderYearEnd(){
       Bonusperioden løber fra <strong>1. december</strong> til <strong>30. november</strong>. Generer rapporten og nulstil sygedage når perioden er slut.
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-      <button class="btn btn-primary" onclick="generateSickPDF()">Download PDF-rapport</button>
-      <button class="btn" style="background:#fde8e8;color:#a32020;border:1px solid #f5b8b8" onclick="resetSickDays()">Nulstil sygedage (start ny periode)</button>
+      <button class="btn btn-primary" onclick="generateSickPDF()">📄 Download sygdoms-rapport</button>
+      <button class="btn" style="background:#fde8e8;color:#a32020;border:1px solid #f5b8b8" onclick="resetSickDays()">🔄 Nulstil sygedage (1. dec)</button>
+    </div>
+    <div style="height:1px;background:#f0f0eb;margin:20px 0"></div>
+    <div class="sec-title">Ferieår – afslutning 31. august</div>
+    <div class="info-box info-box-info" style="margin-bottom:14px">Ferieåret løber fra 1. september til 31. august. Generer rapport og nulstil ferie inden nyt ferieår starter 1. september.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+      <button class="btn btn-primary" onclick="generateVacationPDF()">📄 Download ferie-rapport</button>
+      <button class="btn" style="background:#fde8e8;color:#a32020;border:1px solid #f5b8b8" onclick="resetVacation()">🔄 Nulstil ferie (1. sep)</button>
     </div>
   </div>
   <div class="card">
@@ -2002,6 +2044,76 @@ async function resetSickDays(){
     if(idx>=0)allRequests[idx].archived=true;
   }
   toast('Sygedage nulstillet ✓ – ny periode starter 1. december');
+  setTimeout(()=>render(),600);}
+
+function generateVacationPDF(){
+  const now=new Date();
+  const vacYear=now.getMonth()>=8?now.getFullYear():now.getFullYear()-1;
+  const emps=EMPLOYEES.filter(e=>!e.isAdmin);
+  const rows=emps.map(emp=>{
+    const s=calcStats(emp.id,allRequests);
+    const w6=s.w6Used||0;
+    return{name:emp.name,vacUsed:s.vacUsed,vacLeft:s.vacLeft,w6Used:w6,w6Budget:emp.week6Hours||0};
+  });
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body{font-family:Arial,sans-serif;margin:40px;color:#1a1a1a}
+    h1{font-size:22px;font-weight:700;margin-bottom:4px}
+    .sub{font-size:13px;color:#888;margin-bottom:30px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:10px 8px;border-bottom:2px solid #1a1a1a;font-weight:600}
+    th.r{text-align:right}
+    td{padding:10px 8px;border-bottom:1px solid #e5e5e0}
+    td.r{text-align:right}
+    td.red{color:#a32020;font-weight:600}
+    td.green{color:#2d7a1f;font-weight:600}
+    .total td{border-top:2px solid #1a1a1a;font-weight:700;background:#f5f5f0}
+    .footer{margin-top:40px;font-size:11px;color:#aaa}
+  </style></head><body>
+  <h1>Ferieoversigt – ferieår ${vacYear}/${vacYear+1}</h1>
+  <div class="sub">Ferieår: 1. september ${vacYear} – 31. august ${vacYear+1} &nbsp;|&nbsp; Genereret: ${now.toLocaleDateString('da-DK')}</div>
+  <table>
+    <thead><tr>
+      <th>Medarbejder</th>
+      <th class="r">Feriedage brugt</th>
+      <th class="r">Feriedage tilbage</th>
+      <th class="r">6. ferieuge brugt (t)</th>
+      <th class="r">6. ferieuge budget (t)</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r=>`<tr>
+        <td>${r.name}</td>
+        <td class="r ${r.vacUsed>0?'red':''}">${r.vacUsed}</td>
+        <td class="r ${r.vacLeft<0?'red':'green'}">${r.vacLeft}</td>
+        <td class="r">${r.w6Used}</td>
+        <td class="r">${r.w6Budget}</td>
+      </tr>`).join('')}
+      <tr class="total">
+        <td>I alt</td>
+        <td class="r">${rows.reduce((s,r)=>s+r.vacUsed,0)}</td>
+        <td class="r">${rows.reduce((s,r)=>s+r.vacLeft,0)}</td>
+        <td class="r">${rows.reduce((s,r)=>s+r.w6Used,0)}</td>
+        <td class="r">–</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="footer">Tandklinikken &nbsp;|&nbsp; HR Selvbetjening &nbsp;|&nbsp; Ferie: 25 dage pr. medarbejder</div>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),500);}
+
+async function resetVacation(){
+  const now=new Date();
+  if(!confirm('Er du sikker?\n\nDette arkiverer al afholdt ferie for det nuværende ferieår og nulstiller saldoen til 0.\n\nHusk at downloade PDF-rapporten inden du nulstiller.'))return;
+  const vacReqs=allRequests.filter(r=>['vacation','week6','fritvalg'].includes(r.type));
+  for(const r of vacReqs){
+    await db.collection('requests').doc(r.id).update({archived:true,archivedAt:new Date().toISOString()});
+    const idx=allRequests.findIndex(x=>x.id===r.id);
+    if(idx>=0)allRequests[idx].archived=true;
+  }
+  toast('Ferie nulstillet ✓ – nyt ferieår starter 1. september');
   setTimeout(()=>render(),600);}
 
 function renderAdminManage(){
