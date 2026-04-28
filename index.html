@@ -1519,7 +1519,7 @@ async function renderAdminEmployees(){
         </select>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Fra dato</label><input type="date" id="admin-rfrom"></div>
+        <div class="form-group"><label class="form-label">Fra dato</label><input type="date" id="admin-rfrom" onchange="autoFillAdminToDate()"></div>
         <div class="form-group"><label class="form-label">Til dato</label><input type="date" id="admin-rto"></div>
       </div>
       <div id="admin-hours-field" style="display:none" class="form-group">
@@ -1653,6 +1653,11 @@ function renderAdminSick(){
         </div>
       </div>`}).join('')}
   </div>`:''}`;}
+
+function autoFillAdminToDate(){
+  const from=document.getElementById('admin-rfrom')?.value;
+  const to=document.getElementById('admin-rto');
+  if(from&&to&&!to.value)to.value=from;}
 
 function autoFillSickTo(){
   const from=document.getElementById('sick-from')?.value;
