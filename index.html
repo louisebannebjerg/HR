@@ -837,7 +837,6 @@ async function renderAdmin(){
   setHTML(topbar()+tabsHtml([
     {id:'admindash',label:'Overblik'},
     {id:'requests',label:'Anmodninger'},
-    {id:'birthdays',label:'🎂 Fødselsdage'},
   ])+`<div class="admin-layout">${renderAdminSidebar()}<div class="admin-content">${content}</div></div>`);}
 
 function renderAdminSidebar(){
@@ -850,6 +849,7 @@ function renderAdminSidebar(){
     {id:'yearend',label:'📅 Årsafslutning'},
     {id:'manage',label:'⚙️ Administrer'},
     {id:'myprofile',label:'👤 Min profil'},
+    {id:'birthdays',label:'🎂 Fødselsdage'},
   ];
   return`<div class="sidebar">
     <div class="sidebar-section">
