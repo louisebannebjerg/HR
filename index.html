@@ -1430,8 +1430,10 @@ async function renderAdminEmployees(){
         <div class="stat-card"><div class="stat-label">6. ferieuge tilbage</div><div class="stat-value" style="color:#2d7a1f">${stats.w6Left}t</div></div>
         <div class="stat-card"><div class="stat-label">Sygedage</div><div class="stat-value" style="color:#1a4fa8">${stats.sickDays}</div></div>
         ${stats.hasSickBonus?`<div class="stat-card"><div class="stat-label">Sygdomsbonus</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus.toLocaleString('da-DK')} kr</div></div>`:''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
         <div class="stat-card"><div class="stat-label">Overarb. timer</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
-        ${stats.overtimeBank!==null?`<div class="stat-card"><div class="stat-label">Optjent afspads.</div><div class="stat-value" style="color:#2d7a1f">${stats.overtimeBank}t</div></div>`:''}
+        ${stats.overtimeBank!==null?`<div class="stat-card"><div class="stat-label">Optjent afspadsering</div><div class="stat-value" style="color:#2d7a1f">${stats.overtimeBank}t</div></div>`:'<div></div>'}
         <div class="stat-card"><div class="stat-label">Afspads. brugt</div><div class="stat-value">${stats.flexHours}t</div></div>
         ${stats.flexBank!==null?`<div class="stat-card"><div class="stat-label">Afspads. bank</div><div class="stat-value" style="color:${stats.flexBank>0?'#2d7a1f':'#a32020'}">${stats.flexBank}t</div></div>`:''}
       </div>
