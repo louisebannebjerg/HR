@@ -627,7 +627,7 @@ function renderDashboard(stats, myReqs){
     </div>
   </div>
 
-  ${(()=>{const upcoming=getUpcomingEvents(60);return upcoming.length>0?`<div onclick="switchTab('birthdays')" style="background:linear-gradient(135deg,#667eea,#764ba2);border:none;border-radius:14px;padding:18px;cursor:pointer;margin-bottom:14px">
+  ${(()=>{const upcoming=getUpcomingEvents(180);return upcoming.length>0?`<div onclick="switchTab('birthdays')" style="background:linear-gradient(135deg,#667eea,#764ba2);border:none;border-radius:14px;padding:18px;cursor:pointer;margin-bottom:14px">
     <div style="font-size:11px;color:rgba(255,255,255,0.8);font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Kommende begivenheder</div>
     ${upcoming.slice(0,3).map(ev=>{
       const label=ev.type==='birthday'?(ev.isRound?'🎂 Rund fødselsdag':'🎂 Fødselsdag'):'🏆 Jubilæum';
@@ -1164,7 +1164,7 @@ function renderBirthdays(){
   });
 
   // Upcoming events next 90 days
-  const upcoming = getUpcomingEvents(90);
+  const upcoming = getUpcomingEvents(180);
 
   const monthGroups = {};
   for(const emp of sorted){
@@ -1331,7 +1331,7 @@ function renderAdminDash(){
     </div>
   </div>
 
-  ${(()=>{const upcoming=getUpcomingEvents(60);return upcoming.length>0?`<div onclick="switchTab('birthdays')" style="background:linear-gradient(135deg,#667eea,#764ba2);border:none;border-radius:14px;padding:18px;cursor:pointer;margin-bottom:14px">
+  ${(()=>{const upcoming=getUpcomingEvents(180);return upcoming.length>0?`<div onclick="switchTab('birthdays')" style="background:linear-gradient(135deg,#667eea,#764ba2);border:none;border-radius:14px;padding:18px;cursor:pointer;margin-bottom:14px">
     <div style="font-size:13px;font-weight:600;color:white;margin-bottom:12px">🎂 Kommende fødselsdage & jubilæer</div>
     ${upcoming.slice(0,4).map(ev=>{
       const label=ev.type==='birthday'?(ev.isRound?'🎂 Rund fødselsdag ('+ev.age+' år)':'🎂 Fødselsdag ('+ev.age+' år)'):'🏆 '+ev.years+'-års jubilæum';
