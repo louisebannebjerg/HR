@@ -1185,6 +1185,11 @@ async function renderAdminMessages(){
     if(!empGroups[otherId]) empGroups[otherId]={name:otherName,msgs:[]};
     empGroups[otherId].msgs.push(m);
   }
+  // Add any employee not yet messaged to allow starting new conversation
+  const allEmps = EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin);
+  for(const emp of allEmps){
+    if(!empGroups[emp.id]) empGroups[emp.id]={name:emp.name,msgs:[],noMessages:true};
+  }
 
   // Mark all as read
   for(const m of msgs){
@@ -1193,10 +1198,30 @@ async function renderAdminMessages(){
     }
   }
 
-  const empIds = Object.keys(empGroups);
-  if(empIds.length===0) return'<div class="empty" style="padding:3rem">Ingen beskeder endnu</div>';
+  const empIds = Object.keys(empGroups).sort((a,b)=>{
+    // Sort: unread first, then by latest message
+    const aUnread=empGroups[a].msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
+    const bUnread=empGroups[b].msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
+    if(aUnread!==bUnread) return bUnread-aUnread;
+    const aLatest=empGroups[a].msgs.length?new Date(empGroups[a].msgs[empGroups[a].msgs.length-1].createdAt):0;
+    const bLatest=empGroups[b].msgs.length?new Date(empGroups[b].msgs[empGroups[b].msgs.length-1].createdAt):0;
+    return bLatest-aLatest;
+  });
 
-  return empIds.map(empId=>{
+  return`<div class="card" style="margin-bottom:14px">
+    <div class="sec-title">Ny besked til medarbejder</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Vælg medarbejder</label>
+        <select id="admin-msg-to">${EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin).map(e=>`<option value="${e.id}" data-name="${e.name}">${e.name}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-group">
+      <textarea id="admin-msg-text" placeholder="Skriv besked til medarbejderen..." style="width:100%;min-height:70px;resize:none;font-size:13px"></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="sendAdminNewMessage()">Send besked</button>
+  </div>
+  `+empIds.map(empId=>{
     const ci=empIndex(empId);
     const {bg,tc}=empColor(ci>=0?ci:0);
     const group=empGroups[empId];
@@ -1223,6 +1248,18 @@ async function renderAdminMessages(){
       </div>
     </div>`;
   }).join('');}
+
+async function sendAdminNewMessage(){
+  const sel=document.getElementById('admin-msg-to');
+  const toId=sel?.value;
+  const toName=sel?.options[sel.selectedIndex]?.dataset.name||sel?.options[sel.selectedIndex]?.text;
+  const text=document.getElementById('admin-msg-text')?.value?.trim();
+  if(!text){toast('Skriv en besked');return;}
+  if(!toId){toast('Vælg en medarbejder');return;}
+  await sendMessage('louise','Louise',toId,toName,text);
+  window._messages = await loadMessages('louise',true);
+  toast('Besked sendt ✓');
+  setTimeout(()=>render(),300);}
 
 async function sendAdminReply(toId, toName){
   const text=document.getElementById('admin-reply-'+toId)?.value?.trim();
