@@ -374,6 +374,36 @@ async function loadAllRequests(){
   allRequests = snap.docs.map(d=>({id:d.id,...d.data()}));
 }
 
+async function sendMessage(fromId, fromName, toId, toName, text, replyToId=null){
+  const msg = {fromId, fromName, toId, toName, text, replyToId, createdAt: new Date().toISOString(), readBy: [fromId]};
+  await db.collection('messages').add(msg);
+}
+
+async function loadMessages(userId, isAdmin){
+  const snap = await db.collection('messages').get();
+  const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+  if(isAdmin) return all;
+  return all.filter(m=>m.fromId===userId||m.toId===userId);
+}
+
+async function markMessageRead(msgId, userId){
+  const ref = db.collection('messages').doc(msgId);
+  const doc = await ref.get();
+  if(doc.exists){
+    const readBy = doc.data().readBy||[];
+    if(!readBy.includes(userId)) await ref.update({readBy:[...readBy,userId]});
+  }
+}
+
+async function saveAdminNote(empId, note){
+  await db.collection('adminnotes').doc(empId).set({note, updatedAt: new Date().toISOString()});
+}
+
+async function loadAdminNote(empId){
+  const doc = await db.collection('adminnotes').doc(empId).get();
+  return doc.exists ? doc.data().note : '';
+}
+
 async function saveRequest(req){
   if(req.id){
     await db.collection('requests').doc(req.id).set(req);
@@ -406,6 +436,7 @@ auth.onAuthStateChanged(async user => {
     await loadAllRequests();
     await loadWeek6Hours();
     await loadEmpDates();
+    window._messages = await loadMessages(currentUser.id, currentUser.isAdmin);
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
     render();
   } else {
@@ -529,13 +560,16 @@ async function renderEmployee(){
   else if(tab==='reg') content=renderRegTab();
   else if(tab==='saldo') content=renderSaldoTab(stats, myReqs);
   else if(tab==='history') content=renderHistTab(myReqs);
+  else if(tab==='messages') content=await renderEmpMessages();
   else if(tab==='birthdays'&&BIRTHDAY_ACCESS_EMP.includes(currentUser.id)) content=renderBirthdays();
   else if(tab==='password') content=renderPasswordTab();
+  const unreadCount = window._messages ? window._messages.filter(m=>m.toId===currentUser.id&&!(m.readBy||[]).includes(currentUser.id)).length : 0;
   const empTabs = [
     {id:'dashboard',label:'Overblik'},
     {id:'reg',label:'Registrer'},
     {id:'saldo',label:'Min saldo'},
     {id:'history',label:'Mine anmodninger'},
+    {id:'messages',label:'Beskeder'+(unreadCount>0?' ('+unreadCount+')':'')},
     ...(BIRTHDAY_ACCESS_EMP.includes(currentUser.id)?[{id:'birthdays',label:'🎂 Fødselsdage'}]:[]),
     {id:'password',label:'Skift kodeord'},
   ];
@@ -740,6 +774,45 @@ async function submitReq(){
   toast('Anmodning sendt ✓');
   setTimeout(()=>{tab='history';render()},700);}
 
+async function renderEmpMessages(){
+  const msgs = (window._messages||[]).filter(m=>m.fromId===currentUser.id||m.toId===currentUser.id)
+    .sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  
+  // Mark unread as read
+  for(const m of msgs){
+    if(m.toId===currentUser.id&&!(m.readBy||[]).includes(currentUser.id)){
+      await markMessageRead(m.id, currentUser.id);
+    }
+  }
+
+  return`<div class="card">
+    <div class="sec-title">Beskeder til administrator</div>
+    <div style="max-height:400px;overflow-y:auto;margin-bottom:14px;padding-right:4px">
+      ${msgs.length===0?'<div class="empty">Ingen beskeder endnu</div>':msgs.map(m=>{
+        const isMe=m.fromId===currentUser.id;
+        const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+        return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:10px">
+          <div style="max-width:80%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:10px 14px;font-size:14px">
+            ${m.text}
+          </div>
+          <div style="font-size:11px;color:#aaa;margin-top:3px">${isMe?'Dig':'Louise'} · ${time}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:8px">
+      <textarea id="msg-text" placeholder="Skriv en besked til administrator..." style="flex:1;min-height:60px;resize:none"></textarea>
+    </div>
+    <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="sendEmpMessage()">Send besked</button>
+  </div>`;}
+
+async function sendEmpMessage(){
+  const text=document.getElementById('msg-text')?.value?.trim();
+  if(!text){toast('Skriv en besked først');return;}
+  await sendMessage(currentUser.id,currentUser.name,'louise','Louise',text);
+  window._messages = await loadMessages(currentUser.id, false);
+  toast('Besked sendt ✓');
+  setTimeout(()=>render(),300);}
+
 function renderSaldoTab(stats, myReqs){
   const vacPct=Math.min(100,Math.round((stats.vacUsed/VAC_DAYS)*100));
   const w6Pct=Math.min(100,Math.round((stats.w6Used/WEEK6_DAYS)*100));
@@ -824,10 +897,11 @@ function renderPasswordTab(){
 // ============================================================
 async function renderAdmin(){
   if(!tab||tab==='requests'&&!allRequests.length) tab='admindash';
+  window._messages = await loadMessages(currentUser.id, true);
   let content='';
   if(tab==='admindash') content=renderAdminDash();
   else if(tab==='requests') content=renderAdminRequests();
-  else if(tab==='employees') content=renderAdminEmployees();
+  else if(tab==='employees') content=await renderAdminEmployees();
   else if(tab==='birthdays') content=renderBirthdays();
   else if(tab==='sick') content=renderAdminSick();
   else if(tab==='otherfravær') content=renderAdminOtherAbsence();
@@ -844,6 +918,7 @@ function renderAdminSidebar(){
   const isOpen=window._sidebarOpen!==false;
   const isToolsOpen=window._sidebarToolsOpen!==false;
   const adminTools=[
+    {id:'adminmessages',label:'💬 Beskeder'+(window._messages&&window._messages.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length>0?' ('+window._messages.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length+')':'')},
     {id:'sick',label:'😷 Sygdom'},
     {id:'otherfravær',label:'📋 Andet fravær'},
     {id:'yearend',label:'📅 Årsafslutning'},
@@ -1018,6 +1093,62 @@ async function submitMyProfile(){
   allRequests.push(req);
   toast('Registreret ✓');
   setTimeout(()=>render(),500);}
+
+async function renderAdminMessages(){
+  const msgs = (window._messages||[]).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  const empGroups = {};
+  for(const m of msgs){
+    const otherId = m.fromId==='louise'?m.toId:m.fromId;
+    const otherName = m.fromId==='louise'?m.toName:m.fromName;
+    if(!empGroups[otherId]) empGroups[otherId]={name:otherName,msgs:[]};
+    empGroups[otherId].msgs.push(m);
+  }
+
+  // Mark all as read
+  for(const m of msgs){
+    if(m.toId==='louise'&&!(m.readBy||[]).includes('louise')){
+      await markMessageRead(m.id,'louise');
+    }
+  }
+
+  const empIds = Object.keys(empGroups);
+  if(empIds.length===0) return'<div class="empty" style="padding:3rem">Ingen beskeder endnu</div>';
+
+  return empIds.map(empId=>{
+    const ci=empIndex(empId);
+    const {bg,tc}=empColor(ci>=0?ci:0);
+    const group=empGroups[empId];
+    const unread=group.msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
+    return`<div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div class="av" style="background:${bg};color:${tc}">${EMPLOYEES.find(e=>e.id===empId)?.initials||'?'}</div>
+        <div style="font-size:15px;font-weight:600">${group.name}</div>
+        ${unread>0?`<span class="badge b-pending">${unread} ny${unread!==1?'e':''}</span>`:''}
+      </div>
+      <div style="max-height:300px;overflow-y:auto;margin-bottom:12px">
+        ${group.msgs.map(m=>{
+          const isMe=m.fromId==='louise';
+          const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+          return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:8px">
+            <div style="max-width:80%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:8px 12px;font-size:13px">${m.text}</div>
+            <div style="font-size:11px;color:#aaa;margin-top:2px">${isMe?'Dig':m.fromName} · ${time}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:8px">
+        <textarea id="admin-reply-${empId}" placeholder="Skriv svar..." style="flex:1;min-height:50px;resize:none;font-size:13px"></textarea>
+        <button class="btn btn-primary" style="align-self:flex-end" onclick="sendAdminReply('${empId}','${group.name}')">Send</button>
+      </div>
+    </div>`;
+  }).join('');}
+
+async function sendAdminReply(toId, toName){
+  const text=document.getElementById('admin-reply-'+toId)?.value?.trim();
+  if(!text){toast('Skriv et svar først');return;}
+  await sendMessage('louise','Louise',toId,toName,text);
+  window._messages = await loadMessages('louise',true);
+  toast('Svar sendt ✓');
+  setTimeout(()=>render(),300);}
 
 function renderBirthdays(){
   const now = new Date();
@@ -1262,13 +1393,14 @@ function renderAdminRequests(){
       </div>`}).join('')}
   </div>`;}
 
-function renderAdminEmployees(){
+async function renderAdminEmployees(){
   if(adminView==='detail'&&adminEmpId){
     const emp=getEmpById(adminEmpId);
     const ci=empIndex(adminEmpId);
     const {bg,tc}=empColor(ci>=0?ci:0);
     const stats=calcStats(adminEmpId,allRequests);
     const empReqs=[...allRequests.filter(r=>r.userId===adminEmpId)].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    window._adminNote = await loadAdminNote(adminEmpId);
     return`<div class="back-btn" onclick="goBack()">← Tilbage til oversigt</div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
       <div class="av-lg" style="background:${bg};color:${tc}">${emp.initials}</div>
@@ -1326,6 +1458,10 @@ function renderAdminEmployees(){
       </div>
       <div class="form-group"><label class="form-label">Bemærkning (valgfri)</label><textarea id="admin-rnote" placeholder="f.eks. allerede afholdt"></textarea></div>
       <button class="btn btn-primary" onclick="adminSubmitReq('${adminEmpId}')">Registrer</button>
+    </div>
+    <div class="card" id="admin-notes-card">
+      <div class="sec-title">Private noter <span class="sec-sub">(kun synlige for dig)</span></div>
+      <textarea id="admin-note-text" placeholder="Skriv noter om denne medarbejder..." style="width:100%;min-height:100px;resize:vertical;font-size:13px" onchange="saveAdminNote('${emp.id}',this.value)">${window._adminNote||''}</textarea>
     </div>
     <div class="card">
       <div class="sec-title">Alle registreringer</div>
