@@ -838,16 +838,19 @@ async function renderAdmin(){
     {id:'admindash',label:'Overblik'},
     {id:'requests',label:'Anmodninger'},
     {id:'birthdays',label:'🎂 Fødselsdage'},
-    {id:'sick',label:'Sygdom'},
-    {id:'otherfravær',label:'Andet fravær'},
-    {id:'manage',label:'Administrer'},
-    {id:'yearend',label:'Årsafslutning'},
-    {id:'myprofile',label:'Min profil'},
   ])+`<div class="admin-layout">${renderAdminSidebar()}<div class="admin-content">${content}</div></div>`);}
 
 function renderAdminSidebar(){
   const emps=EMPLOYEES.filter(e=>!e.isAdmin);
   const isOpen=window._sidebarOpen!==false;
+  const isToolsOpen=window._sidebarToolsOpen!==false;
+  const adminTools=[
+    {id:'sick',label:'😷 Sygdom'},
+    {id:'otherfravær',label:'📋 Andet fravær'},
+    {id:'yearend',label:'📅 Årsafslutning'},
+    {id:'manage',label:'⚙️ Administrer'},
+    {id:'myprofile',label:'👤 Min profil'},
+  ];
   return`<div class="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-emp-header ${isOpen?'open':''}" onclick="toggleSidebar()">
@@ -858,14 +861,31 @@ function renderAdminSidebar(){
         ${emps.map(emp=>{
           const ci=empIndex(emp.id);
           const {bg,tc}=empColor(ci>=0?ci:0);
-          return`<div class="sidebar-emp-item" onclick="openEmpFromSidebar('${emp.id}')">
+          const isActive=tab==='employees'&&adminEmpId===emp.id;
+          return`<div class="sidebar-emp-item" onclick="openEmpFromSidebar('${emp.id}')" style="${isActive?'background:#f0f0fb;color:#6c63d4;font-weight:500':''}">
             <div class="av-sm" style="background:${bg};color:${tc}">${emp.initials}</div>
             <span>${emp.name.split(' ')[0]}</span>
           </div>`;
         }).join('')}
       </div>
     </div>
+    <div style="height:1px;background:#f0f0eb;margin:8px 0"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-emp-header ${isToolsOpen?'open':''}" onclick="toggleSidebarTools()">
+        <span>Administration</span>
+        <span class="arrow">▼</span>
+      </div>
+      <div class="sidebar-emp-list ${isToolsOpen?'open':''}">
+        ${adminTools.map(t=>`<div class="sidebar-emp-item" onclick="switchTab('${t.id}')" style="${tab===t.id?'background:#f0f0fb;color:#6c63d4;font-weight:500':''}">
+          <span>${t.label}</span>
+        </div>`).join('')}
+      </div>
+    </div>
   </div>`;}
+
+function toggleSidebarTools(){
+  window._sidebarToolsOpen=window._sidebarToolsOpen===false?true:false;
+  render();}
 
 function toggleSidebar(){
   window._sidebarOpen=window._sidebarOpen===false?true:false;
