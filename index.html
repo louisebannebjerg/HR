@@ -916,8 +916,8 @@ async function renderAdmin(){
 
 function renderAdminSidebar(){
   const emps=EMPLOYEES.filter(e=>!e.isAdmin);
-  const isOpen=window._sidebarOpen!==false;
-  const isToolsOpen=window._sidebarToolsOpen!==false;
+  const isOpen=localStorage.getItem('sidebarOpen')!=='false';
+  const isToolsOpen=localStorage.getItem('sidebarToolsOpen')!=='false';
   const adminTools=[
     {id:'adminmessages',label:'💬 Beskeder'+(window._messages&&window._messages.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length>0?' ('+window._messages.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length+')':'')},
     {id:'sick',label:'😷 Sygdom'},
@@ -960,11 +960,13 @@ function renderAdminSidebar(){
   </div>`;}
 
 function toggleSidebarTools(){
-  window._sidebarToolsOpen=window._sidebarToolsOpen===false?true:false;
+  const current=localStorage.getItem('sidebarToolsOpen')!=='false';
+  localStorage.setItem('sidebarToolsOpen',(!current).toString());
   render();}
 
 function toggleSidebar(){
-  window._sidebarOpen=window._sidebarOpen===false?true:false;
+  const current=localStorage.getItem('sidebarOpen')!=='false';
+  localStorage.setItem('sidebarOpen',(!current).toString());
   render();}
 
 function openEmpFromSidebar(id){
