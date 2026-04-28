@@ -249,7 +249,16 @@ function toast(msg, dur=2500){
   setTimeout(()=>t.classList.remove('show'),dur);
 }
 function calcDays(a,b){if(!a||!b)return 0;return Math.max(0,Math.round((new Date(b)-new Date(a))/86400000)+1)}
-function fmt(d){if(!d)return'';return new Date(d).toLocaleDateString('da-DK',{day:'2-digit',month:'short',year:'numeric'})}
+function fmt(d){
+  if(!d)return'';
+  // Ensure ISO format YYYY-MM-DD is parsed correctly
+  const parts=d.split('-');
+  if(parts.length===3&&parts[0].length===4){
+    // Already YYYY-MM-DD format
+    const dt=new Date(parts[0],parseInt(parts[1])-1,parseInt(parts[2]));
+    return dt.toLocaleDateString('da-DK',{day:'2-digit',month:'short',year:'numeric'});
+  }
+  return new Date(d).toLocaleDateString('da-DK',{day:'2-digit',month:'short',year:'numeric'});}
 function typeLabel(t){return{vacation:'Ferie',week6:'6. ferieuge',fritvalg:'Fritvalgskonto',overtime:'Overarbejde',flex:'Afspadsering',sick:'Sygedag','emp-other':'Andet fravær'}[t]||t}
 // ============================================================
 // BIRTHDAY & JUBILEE HELPERS
@@ -764,7 +773,11 @@ function showOvertimePreview(){
 function autoFillToDate(){
   const from=document.getElementById('rfrom')?.value;
   const rto=document.getElementById('rto');
-  if(from&&rto&&!rto.value)rto.value=from;
+  const type=document.getElementById('rtype')?.value;
+  if(from&&rto&&type!=='overtime'&&type!=='week6'){
+    // Always auto-fill to-date with from-date when user picks from-date
+    rto.value=from;
+  }
   updateDaysPreview();}
 
 function updateDaysPreview(){
@@ -1121,7 +1134,7 @@ function renderMyProfile(){
 function autoFillMypToDate(){
   const from=document.getElementById('myp-from')?.value;
   const to=document.getElementById('myp-to');
-  if(from&&to&&!to.value)to.value=from;}
+  if(from&&to)to.value=from;}
 
 function onMypTypeChange(){
   const t=document.getElementById('myp-type')?.value;
@@ -1674,17 +1687,17 @@ function renderAdminSick(){
 function autoFillAdminToDate(){
   const from=document.getElementById('admin-rfrom')?.value;
   const to=document.getElementById('admin-rto');
-  if(from&&to&&!to.value)to.value=from;}
+  if(from&&to)to.value=from;}
 
 function autoFillSickTo(){
   const from=document.getElementById('sick-from')?.value;
   const to=document.getElementById('sick-to');
-  if(from&&to&&!to.value)to.value=from;}
+  if(from&&to)to.value=from;}
 
 function autoFillOtherAbsTo(){
   const from=document.getElementById('other-abs-from')?.value;
   const to=document.getElementById('other-abs-to');
-  if(from&&to&&!to.value)to.value=from;}
+  if(from&&to)to.value=from;}
 
 function onAbsenceTypeChange(){
   const t=document.getElementById('sick-type')?.value;
