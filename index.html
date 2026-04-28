@@ -370,7 +370,7 @@ function calcStats(empId, reqs){
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
   const flexBank = overtimeBank!==null?Math.round((overtimeBank-flexHours)*100)/100:null;
   const w6UsedR=Math.round(w6Used*100)/100;
-  const w6LeftR=Math.round(Math.max(0,empWeek6Hours-w6Used)*100)/100;
+  const w6LeftR=Math.round((empWeek6Hours-w6Used)*100)/100;
   return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used:w6UsedR,w6Left:w6LeftR,w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank};
 }
 
@@ -791,9 +791,10 @@ async function submitReq(){
     const left=type==='vacation'?stats.vacLeft:stats.w6Left;
     const label=type==='vacation'?'ferie':'6. ferieuge';
     const unit=type==='vacation'?'dage':'timer';
-    if(days>left){
-      const over=days-left;
-      const ok=confirm('Du har kun '+left+' '+(type==='week6'?'timer':'dag'+(left!==1?'e':''))+' tilbage af din '+label+'.\n\nDu søger '+(type==='week6'?hours:days)+' '+(type==='week6'?'timer':'dage')+' – det er '+over+' '+(type==='week6'?'timer':'dag'+(over!==1?'e':''))+' mere end du har til rådighed.\n\nVil du alligevel sende anmodningen?');
+    const requested=type==='week6'?hours:days;
+    if(requested>left){
+      const over=Math.round((requested-left)*100)/100;
+      const ok=confirm('Du har kun '+left+' '+(type==='week6'?'timer':'dag'+(left!==1?'e':''))+' tilbage af din '+label+'.\n\nDu søger '+requested+' '+(type==='week6'?'timer':'dage')+' – det er '+over+' '+(type==='week6'?'timer':'dag'+(over!==1?'e':''))+' mere end du har til rådighed.\n\nOverskydende vil stå som minus på din saldo.\n\nVil du alligevel sende anmodningen?');
       if(!ok)return;
     }
   }
@@ -894,8 +895,8 @@ function renderSaldoTab(stats, myReqs){
     <div>
       <div class="info-row"><span class="info-label">6. ferieuge (timer · 1. jan – 31. dec)</span></div>
       <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.w6Used} timer</span></div>
-      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:#2d7a1f">${stats.w6Left} timer</span></div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${w6Pct}%;background:#1d9e75"></div></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.w6Left<0?'#a32020':'#2d7a1f'}">${stats.w6Left} timer${stats.w6Left<0?' ⚠️ (minus)':''}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,w6Pct))}%;background:${stats.w6Left<0?'#e24b4a':'#1d9e75'}"></div></div>
     </div>
   </div>
   <div class="card">
@@ -1508,6 +1509,7 @@ async function renderAdminEmployees(){
     </div>
     <div class="card">
       <div class="sec-title">Registrer ferie/afspadsering for ${emp.name}</div>
+      <input type="hidden" id="admin-emp-id" value="${emp.id}">
       <div class="info-box info-box-info" style="margin-bottom:12px">Her kan du registrere allerede afholdt ferie eller andre registreringer bagud i tid.</div>
       <div class="form-group">
         <label class="form-label">Type</label>
@@ -1576,6 +1578,21 @@ function onAdminTypeChange(){
   const t=document.getElementById('admin-rtype')?.value;
   const hf=document.getElementById('admin-hours-field');
   if(hf)hf.style.display=(t==='overtime'||t==='flex'||t==='week6')?'block':'none';}
+
+function checkAdminWeek6Budget(empId){
+  const emp=EMPLOYEES.find(e=>e.id===empId);
+  const stats=calcStats(empId,allRequests);
+  const type=document.getElementById('admin-rtype')?.value;
+  const hours=parseFloat(document.getElementById('admin-rhours')?.value||0);
+  const preview=document.getElementById('admin-week6-preview');
+  if(!preview)return;
+  if(type==='week6'&&hours>0&&stats.w6Left<hours){
+    const over=Math.round((hours-stats.w6Left)*100)/100;
+    preview.style.display='block';
+    preview.innerHTML='⚠️ Medarbejderen har kun '+stats.w6Left+' timer tilbage. '+over+' timer vil gå i minus.';
+  } else {
+    preview.style.display='none';
+  }}
 
 async function adminSubmitReq(empId){
   const emp=getEmpById(empId);
