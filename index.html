@@ -691,9 +691,9 @@ function renderDashboard(stats, myReqs){
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Hurtige handlinger</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button onclick="goToReg('vacation')" style="background:#6c63d4;color:white;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Søg ferie</button>
-        ${hasFritvalg?`<button onclick="goToReg('fritvalg')" style="background:#fef3e0;color:#9a5f0a;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Fritvalgskonto</button>`:''}
-        ${hasOvertimeBank?`<button onclick="goToReg('flex')" style="background:#e8f5e0;color:#2d7a1f;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Registrer afspadsering</button>`:''}
+        <button onclick="goToReg('emp-other')" style="background:#f0e8ff;color:#5b2d9e;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Søg fri</button>
         ${hasOvertimeBank?`<button onclick="goToReg('overtime')" style="background:#e8f0fd;color:#1a4fa8;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Registrer overarbejde</button>`:''}
+        ${hasOvertimeBank?`<button onclick="goToReg('flex')" style="background:#e8f5e0;color:#2d7a1f;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">+ Registrer afspadsering</button>`:''}
         <button onclick="switchTab('history')" style="background:#f0f0eb;color:#1a1a1a;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;text-align:left">Se mine anmodninger</button>
       </div>
     </div>
