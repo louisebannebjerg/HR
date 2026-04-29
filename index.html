@@ -592,8 +592,16 @@ async function renderEmployee(){
     ...(BIRTHDAY_ACCESS_EMP.includes(currentUser.id)?[{id:'birthdays',label:'🎂 Fødselsdage'}]:[]),
     {id:'password',label:'🔑 Skift kodeord'},
   ];
+  const isMobile = window.innerWidth <= 600;
   const empSidebar = `<div class="emp-sidebar">
-    ${empNavItems.map(item=>`<div class="emp-nav-item${tab===item.id?' active':''}" onclick="switchTab('${item.id}')">${item.label}</div>`).join('')}
+    ${empNavItems.map(item=>{
+      const parts = item.label.match(/^(\S+)\s(.+)$/);
+      const icon = parts ? parts[1] : '';
+      const text = parts ? parts[2] : item.label;
+      return `<div class="emp-nav-item${tab===item.id?' active':''}" onclick="switchTab('${item.id}')">
+        ${isMobile ? `<span class="nav-icon">${icon}</span><span>${text}</span>` : item.label}
+      </div>`;
+    }).join('')}
   </div>`;
   setHTML(topbar()+`<div class="emp-layout">${empSidebar}<div class="emp-content">${content}</div></div>`);}
 
