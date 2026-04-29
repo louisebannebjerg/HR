@@ -1008,10 +1008,45 @@ async function renderAdmin(){
   else if(tab==='manage') content=renderAdminManage();
   else if(tab==='yearend') content=renderYearEnd();
   else if(tab==='myprofile') content=renderMyProfile();
-  setHTML(topbar()+tabsHtml([
-    {id:'admindash',label:'Overblik'},
-    {id:'requests',label:'Anmodninger'},
-  ])+`<div class="admin-layout">${renderAdminSidebar()}<div class="admin-content">${content}</div></div>`);}
+  const isMobileAdmin = window.innerWidth <= 640;
+  if(isMobileAdmin){
+    // Mobile admin: top tabs + content full width + bottom sidebar nav
+    const adminNavItems = [
+      {id:'admindash', icon:'🏠', label:'Overblik'},
+      {id:'requests', icon:'📬', label:'Anmodninger'},
+      {id:'adminmessages', icon:'💬', label:'Beskeder'},
+      {id:'sick', icon:'🤒', label:'Sygdom'},
+      {id:'otherfravær', icon:'📋', label:'Fravær'},
+      {id:'yearend', icon:'📅', label:'Årsafs.'},
+      {id:'manage', icon:'⚙️', label:'Admin'},
+      {id:'myprofile', icon:'👤', label:'Profil'},
+      {id:'birthdays', icon:'🎂', label:'Fødsel.'},
+    ];
+    const empNavItems2 = EMPLOYEES.filter(e=>!e.isAdmin).map(emp=>{
+      const ci=empIndex(emp.id);
+      const {bg,tc}=empColor(ci>=0?ci:0);
+      return {id:'emp_'+emp.id, icon:'<span style="width:20px;height:20px;border-radius:50%;background:'+bg+';color:'+tc+';display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:600">'+emp.initials+'</span>', label:emp.name.split(' ')[0]};
+    });
+    const allNavItems = [...adminNavItems, ...empNavItems2];
+    const bottomNav = `<div style="position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #e5e5e0;z-index:999;box-shadow:0 -2px 8px rgba(0,0,0,0.08);overflow-x:auto;white-space:nowrap;display:flex">
+      ${allNavItems.map(item=>{
+        const isActive = tab===item.id || (item.id.startsWith('emp_') && tab==='employees' && adminEmpId===item.id.replace('emp_',''));
+        const realId = item.id.startsWith('emp_') ? item.id.replace('emp_','') : null;
+        const onclick = realId ? `openEmpFromSidebar('${realId}')` : `switchTab('${item.id}')`;
+        return `<div onclick="${onclick}" style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:55px;padding:6px 4px;cursor:pointer;color:${isActive?'#6c63d4':'#888'};background:${isActive?'#f5f4ff':'white'};border-top:2px solid ${isActive?'#6c63d4':'transparent'};gap:1px">
+          <span style="font-size:16px;line-height:1">${item.icon}</span>
+          <span style="font-size:8px;font-weight:${isActive?'600':'400'};white-space:nowrap">${item.label}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+    setHTML(topbar()+`<div style="padding:12px;padding-bottom:75px;max-width:100%">${content}</div>`+bottomNav);
+  } else {
+    setHTML(topbar()+tabsHtml([
+      {id:'admindash',label:'Overblik'},
+      {id:'requests',label:'Anmodninger'},
+    ])+`<div class="admin-layout">${renderAdminSidebar()}<div class="admin-content">${content}</div></div>`);
+  }
+}
 
 function renderAdminSidebar(){
   const emps=EMPLOYEES.filter(e=>!e.isAdmin);
