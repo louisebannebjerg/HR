@@ -327,7 +327,7 @@ function getUpcomingEvents(days=90){
 }
 
 let FRITVALG_EMP=['rikke', 'bente', 'jeannette', 'merle', 'emma', 'grethe', 'anette', 'pernille', 'test'];
-let OVERTIME_EMP=['rikke','bente','jeannette','merle','emma','grethe','anette','pernille','rie','ditte','ernisa','agnes'];
+let OVERTIME_EMP=['rikke','bente','jeannette','merle','emma','grethe','anette','pernille','rie','ditte','ernisa','agnes','test'];
 
 function getWeekStart(dateStr){
   const d=new Date(dateStr);
@@ -2027,9 +2027,14 @@ async function loadOvertimeList(){
   try{
     const doc=await db.collection('settings').doc('overtimelist').get();
     if(doc.exists&&doc.data().ids){
-      const ids=doc.data().ids;
+      // Use Firebase version (admin changes) but always include hardcoded defaults
+      const firebaseIds=doc.data().ids;
+      const defaultIds=['rikke','bente','jeannette','merle','emma','grethe','anette','pernille','rie','ditte','ernisa','agnes','test'];
+      // Merge: keep firebase list but add any new defaults not yet in Firebase
+      const merged=[...new Set([...firebaseIds,...defaultIds.filter(id=>!doc.data().hasOwnProperty('removed_'+id))])];
       OVERTIME_EMP.length=0;
-      ids.forEach(id=>OVERTIME_EMP.push(id));
+      merged.forEach(id=>OVERTIME_EMP.push(id));
+      await saveOvertimeList([...OVERTIME_EMP]);
     } else {
       await saveOvertimeList([...OVERTIME_EMP]);
     }
@@ -2046,13 +2051,14 @@ async function loadFritvalgList(){
   try{
     const doc=await db.collection('settings').doc('fritvalglist').get();
     if(doc.exists&&doc.data().ids){
-      // Override the hardcoded list with Firebase version
-      const ids=doc.data().ids;
-      // Update global array by replacing content
+      // Use Firebase version but always include hardcoded defaults
+      const firebaseIds=doc.data().ids;
+      const defaultIds=['rikke','bente','jeannette','merle','emma','grethe','anette','pernille','test'];
+      const merged=[...new Set([...firebaseIds,...defaultIds.filter(id=>!doc.data().hasOwnProperty('removed_'+id))])];
       FRITVALG_EMP.length=0;
-      ids.forEach(id=>FRITVALG_EMP.push(id));
+      merged.forEach(id=>FRITVALG_EMP.push(id));
+      await saveFritvalgList([...FRITVALG_EMP]);
     } else {
-      // First time - save the default list to Firebase
       await saveFritvalgList([...FRITVALG_EMP]);
     }
   }catch(e){console.error('loadFritvalgList error:',e);}
@@ -2249,7 +2255,10 @@ async function toggleOvertime(empId, checked){
     const idx=OVERTIME_EMP.indexOf(empId);
     if(idx>=0) OVERTIME_EMP.splice(idx,1);
   }
-  await saveOvertimeList([...OVERTIME_EMP]);
+  // Save with explicit removed marker so merge logic respects admin choice
+  const data={ids:[...OVERTIME_EMP]};
+  if(!checked) data['removed_'+empId]=true;
+  await db.collection('settings').doc('overtimelist').set(data,{merge:true});
   toast('Gemt ✓');
   render();}
 
@@ -2282,7 +2291,9 @@ async function toggleFritvalg(empId, checked){
     const idx=FRITVALG_EMP.indexOf(empId);
     if(idx>=0) FRITVALG_EMP.splice(idx,1);
   }
-  await saveFritvalgList([...FRITVALG_EMP]);
+  const data={ids:[...FRITVALG_EMP]};
+  if(!checked) data['removed_'+empId]=true;
+  await db.collection('settings').doc('fritvalglist').set(data,{merge:true});
   toast('Gemt ✓');
   render();}
 
