@@ -1621,16 +1621,23 @@ async function renderAdminEmployees(){
       </div>
     </div>
     <div class="card">
-      <div class="sec-title">Registrer ferie/afspadsering for ${emp.name}</div>
+      <div class="sec-title">Registrer for ${emp.name}</div>
       <input type="hidden" id="admin-emp-id" value="${emp.id}">
       <div class="info-box info-box-info" style="margin-bottom:12px">Her kan du registrere allerede afholdt ferie eller andre registreringer bagud i tid.</div>
       <div class="form-group">
         <label class="form-label">Type</label>
-        <select id="admin-rtype" onchange="onAdminTypeChange()">
+        <select id="admin-rtype" onchange="onAdminTypeChange();checkAdminWeek6Budget(document.getElementById('admin-emp-id')?.value)">
           <option value="vacation">Ferie</option>
           <option value="week6">6. ferieuge</option>
           <option value="overtime">Overarbejde</option>
           <option value="flex">Afspadsering</option>
+          <option value="sick-own">Sygdom – egen</option>
+          <option value="sick-barn">Sygdom – barn syg</option>
+          <option value="course">Kursusdag</option>
+          <option value="other-boern">Fravær – Børn (læge m.m.)</option>
+          <option value="other-laege">Andet fravær – Læge</option>
+          <option value="other-sygehus">Andet fravær – Sygehus</option>
+          <option value="other-andet">Andet fravær – Andet</option>
         </select>
       </div>
       <div class="form-row">
@@ -1639,8 +1646,13 @@ async function renderAdminEmployees(){
       </div>
       <div id="admin-hours-field" style="display:none" class="form-group">
         <label class="form-label">Timer</label>
-        <input type="number" id="admin-rhours" min="0.5" max="24" step="0.5" placeholder="f.eks. 4">
+        <input type="number" id="admin-rhours" min="0.5" max="24" step="0.5" placeholder="f.eks. 4" oninput="checkAdminWeek6Budget(document.getElementById('admin-emp-id')?.value)">
       </div>
+      <div id="admin-other-note-field" style="display:none" class="form-group">
+        <label class="form-label">Beskriv fraværet</label>
+        <input type="text" id="admin-other-note-text" placeholder="f.eks. lægebesøg...">
+      </div>
+      <div id="admin-week6-preview" style="display:none;background:#fef3e0;color:#9a5f0a;border:1px solid #f5dfa0;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px"></div>
       <div class="form-group"><label class="form-label">Bemærkning (valgfri)</label><textarea id="admin-rnote" placeholder="f.eks. allerede afholdt"></textarea></div>
       <button class="btn btn-primary" onclick="adminSubmitReq('${adminEmpId}')">Registrer</button>
     </div>
