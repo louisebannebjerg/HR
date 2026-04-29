@@ -1300,7 +1300,10 @@ async function renderAdminMessages(){
           const isMe=m.fromId==='louise';
           const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
           return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:8px">
-            <div style="max-width:80%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:8px 12px;font-size:13px">${m.text}</div>
+            <div style="display:flex;align-items:flex-start;gap:6px">
+              <div style="max-width:80%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:8px 12px;font-size:13px">${m.text}</div>
+              <button onclick="deleteMessage('${m.id}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:2px 4px;flex-shrink:0;margin-top:2px" title="Slet besked">🗑</button>
+            </div>
             <div style="font-size:11px;color:#aaa;margin-top:2px">${isMe?'Dig':m.fromName} · ${time}</div>
           </div>`;
         }).join('')}
@@ -1311,6 +1314,13 @@ async function renderAdminMessages(){
       </div>
     </div>`;
   }).join('');}
+
+async function deleteMessage(msgId){
+  if(!confirm('Vil du slette denne besked?')) return;
+  await db.collection('messages').doc(msgId).delete();
+  window._messages = await loadMessages('louise', true);
+  toast('Besked slettet ✓');
+  setTimeout(()=>render(), 300);}
 
 async function sendAdminNewMessage(){
   const sel=document.getElementById('admin-msg-to');
