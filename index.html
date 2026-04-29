@@ -704,6 +704,7 @@ function renderDashboard(stats, myReqs){
       ${[
         {key:'all',label:'Alle'},
         {key:'vacation',label:'🏖 Ferie'},
+        {key:'fritvalg',label:'💰 Fritvalg'},
         {key:'other',label:'📋 Andet fravær'},
         {key:'overtime',label:'⏱ Overarbejde'},
         {key:'flex',label:'😌 Afspadsering'},
@@ -712,7 +713,8 @@ function renderDashboard(stats, myReqs){
     ${(()=>{
       const actTab=window._actTab||'all';
       let filtered=myReqs;
-      if(actTab==='vacation') filtered=myReqs.filter(r=>r.type==='vacation'||r.type==='week6'||r.type==='fritvalg');
+      if(actTab==='vacation') filtered=myReqs.filter(r=>r.type==='vacation'||r.type==='week6');
+      else if(actTab==='fritvalg') filtered=myReqs.filter(r=>r.type==='fritvalg');
       else if(actTab==='other') filtered=myReqs.filter(r=>r.type==='emp-other'||r.type==='other'||r.type==='course');
       else if(actTab==='overtime') filtered=myReqs.filter(r=>r.type==='overtime');
       else if(actTab==='flex') filtered=myReqs.filter(r=>r.type==='flex');
@@ -750,7 +752,7 @@ function renderRegTab(){
       <div id="to-date-field" class="form-group"><label class="form-label">Til dato</label><input type="date" id="rto" onchange="updateDaysPreview()"></div>
     </div>
     <div id="hours-field" style="display:none" class="form-group">
-      <label class="form-label">Timer</label>
+      <label class="form-label" id="hours-label">Timer</label>
       <input type="number" id="rhours" min="0.5" max="24" step="0.5" placeholder="f.eks. 4" oninput="showOvertimePreview()">
     </div>
     <div id="emp-other-field" style="display:none" class="form-group">
@@ -766,7 +768,7 @@ function renderRegTab(){
 function onTypeChange(){
   const t=document.getElementById('rtype')?.value;
   const hf=document.getElementById('hours-field');
-  if(hf)hf.style.display=(t==='overtime'||t==='flex'||t==='week6')?'block':'none';
+  if(hf)hf.style.display=(t==='overtime'||t==='flex'||t==='week6'||t==='fritvalg')?'block':'none';
   const op=document.getElementById('overtime-preview');
   if(op)op.style.display='none';
   const eof=document.getElementById('emp-other-field');
@@ -775,7 +777,9 @@ function onTypeChange(){
   if(tdf)tdf.style.display=(t==='overtime'||t==='week6')?'none':'block';
   if(t==='overtime'||t==='week6'){const rto=document.getElementById('rto');if(rto)rto.value='';}
   const fdl=document.getElementById('from-date-label');
-  if(fdl)fdl.textContent=(t==='overtime'||t==='week6')?'Dato':'Fra dato';}
+  if(fdl)fdl.textContent=(t==='overtime'||t==='week6')?'Dato':'Fra dato';
+  const hl=document.getElementById('hours-label');
+  if(hl)hl.textContent=(t==='fritvalg')?'Timer (fritvalgskonto)':'Timer';}
 
 function showOvertimePreview(){
   const type=document.getElementById('rtype')?.value;
@@ -887,12 +891,14 @@ function renderAktivitet(myReqs){
   const tabs=[
     {key:'all',label:'Alle'},
     {key:'vacation',label:'🏖 Ferie'},
+    {key:'fritvalg',label:'💰 Fritvalg'},
     {key:'other',label:'📋 Andet fravær'},
     {key:'overtime',label:'⏱ Overarbejde'},
     {key:'flex',label:'😌 Afspadsering'},
   ];
   let filtered=myReqs;
-  if(actTab==='vacation') filtered=myReqs.filter(r=>r.type==='vacation'||r.type==='week6'||r.type==='fritvalg');
+  if(actTab==='vacation') filtered=myReqs.filter(r=>r.type==='vacation'||r.type==='week6');
+  else if(actTab==='fritvalg') filtered=myReqs.filter(r=>r.type==='fritvalg');
   else if(actTab==='other') filtered=myReqs.filter(r=>r.type==='emp-other'||r.type==='other'||r.type==='course');
   else if(actTab==='overtime') filtered=myReqs.filter(r=>r.type==='overtime');
   else if(actTab==='flex') filtered=myReqs.filter(r=>r.type==='flex');
@@ -1684,7 +1690,7 @@ async function renderAdminEmployees(){
 function onAdminTypeChange(){
   const t=document.getElementById('admin-rtype')?.value;
   const hf=document.getElementById('admin-hours-field');
-  if(hf)hf.style.display=(t==='overtime'||t==='flex'||t==='week6')?'block':'none';}
+  if(hf)hf.style.display=(t==='overtime'||t==='flex'||t==='week6'||t==='fritvalg')?'block':'none';}
 
 function checkAdminWeek6Budget(empId){
   const emp=EMPLOYEES.find(e=>e.id===empId);
