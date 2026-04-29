@@ -592,18 +592,30 @@ async function renderEmployee(){
     ...(BIRTHDAY_ACCESS_EMP.includes(currentUser.id)?[{id:'birthdays',label:'🎂 Fødselsdage'}]:[]),
     {id:'password',label:'🔑 Skift kodeord'},
   ];
-  const isMobile = window.innerWidth <= 600;
-  const empSidebar = `<div class="emp-sidebar">
-    ${empNavItems.map(item=>{
-      const parts = item.label.match(/^(\S+)\s(.+)$/);
-      const icon = parts ? parts[1] : '';
-      const text = parts ? parts[2] : item.label;
-      return `<div class="emp-nav-item${tab===item.id?' active':''}" onclick="switchTab('${item.id}')">
-        ${isMobile ? `<span class="nav-icon">${icon}</span><span>${text}</span>` : item.label}
-      </div>`;
-    }).join('')}
-  </div>`;
-  setHTML(topbar()+`<div class="emp-layout">${empSidebar}<div class="emp-content">${content}</div></div>`);}
+  const isMobile = window.innerWidth <= 640;
+  if(isMobile){
+    // Mobile: bottom navigation bar
+    const bottomNav = `<div style="position:fixed;bottom:0;left:0;right:0;height:58px;background:white;border-top:1px solid #e5e5e0;display:flex;z-index:999;box-shadow:0 -2px 8px rgba(0,0,0,0.08)">
+      ${empNavItems.map(item=>{
+        const parts = item.label.match(/^(\S+)\s(.+)$/);
+        const icon = parts ? parts[1] : '●';
+        const text = parts ? parts[2] : item.label;
+        const isActive = tab===item.id;
+        return `<div onclick="switchTab('${item.id}')" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;color:${isActive?'#6c63d4':'#888'};background:${isActive?'#f5f4ff':'white'};border-top:2px solid ${isActive?'#6c63d4':'transparent'}">
+          <span style="font-size:18px;line-height:1">${icon}</span>
+          <span style="font-size:9px;font-weight:${isActive?'600':'400'};white-space:nowrap;overflow:hidden;max-width:52px;text-align:center">${text.length>8?text.slice(0,8)+'…':text}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+    setHTML(topbar()+`<div style="padding:12px;padding-bottom:70px;max-width:100%">${content}</div>`+bottomNav);
+  } else {
+    // Desktop: left sidebar
+    const empSidebar = `<div class="emp-sidebar">
+      ${empNavItems.map(item=>`<div class="emp-nav-item${tab===item.id?' active':''}" onclick="switchTab('${item.id}')">${item.label}</div>`).join('')}
+    </div>`;
+    setHTML(topbar()+`<div class="emp-layout">${empSidebar}<div class="emp-content">${content}</div></div>`);
+  }
+}
 
 function renderDashboard(stats, myReqs){
   const ci=empIndex(currentUser.id);
