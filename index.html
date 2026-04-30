@@ -774,10 +774,10 @@ function onTypeChange(){
   const eof=document.getElementById('emp-other-field');
   if(eof)eof.style.display=(t==='emp-other')?'block':'none';
   const tdf=document.getElementById('to-date-field');
-  if(tdf)tdf.style.display=(t==='overtime'||t==='week6')?'none':'block';
-  if(t==='overtime'||t==='week6'){const rto=document.getElementById('rto');if(rto)rto.value='';}
+  if(tdf)tdf.style.display=(t==='overtime')?'none':'block';
+  if(t==='overtime'){const rto=document.getElementById('rto');if(rto)rto.value='';}
   const fdl=document.getElementById('from-date-label');
-  if(fdl)fdl.textContent=(t==='overtime'||t==='week6')?'Dato':'Fra dato';
+  if(fdl)fdl.textContent=(t==='overtime')?'Dato':'Fra dato';
   const hl=document.getElementById('hours-label');
   if(hl)hl.textContent=(t==='fritvalg')?'Timer (fritvalgskonto)':'Timer';}
 
@@ -800,7 +800,7 @@ function autoFillToDate(){
   const from=document.getElementById('rfrom')?.value;
   const rto=document.getElementById('rto');
   const type=document.getElementById('rtype')?.value;
-  if(from&&rto&&type!=='overtime'&&type!=='week6'){
+  if(from&&rto&&type!=='overtime'){
     // Always auto-fill to-date with from-date when user picks from-date
     rto.value=from;
   }
