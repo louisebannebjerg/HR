@@ -2389,6 +2389,8 @@ function renderAdminManage(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="form-group" style="margin:0"><label class="form-label">Fulde navn</label><input type="text" id="new-emp-name" placeholder="f.eks. Mette Hansen"></div>
       <div class="form-group" style="margin:0"><label class="form-label">E-mail</label><input type="email" id="new-emp-email" placeholder="mette@eksempel.dk"></div>
+      <div class="form-group" style="margin:0"><label class="form-label">Fødselsdato</label><input type="date" id="new-emp-bday"></div>
+      <div class="form-group" style="margin:0"><label class="form-label">Ansættelsesdato</label><input type="date" id="new-emp-started"></div>
       <div class="form-group" style="margin:0"><label class="form-label">Feriedage pr. år</label><input type="number" id="new-emp-vacdays" value="25" min="0" max="50"></div>
       <div class="form-group" style="margin:0"><label class="form-label">Kan logge ind</label>
         <select id="new-emp-canlogin"><option value="true">Ja</option><option value="false">Nej (admin-styret)</option></select>
@@ -2418,6 +2420,8 @@ function renderAdminManage(){
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
             <div class="form-group" style="margin:0"><label class="form-label">Navn</label><input type="text" id="edit-emp-name-${emp.id}" value="${emp.name}"></div>
             <div class="form-group" style="margin:0"><label class="form-label">E-mail</label><input type="email" id="edit-emp-email-${emp.id}" value="${emp.email||''}"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Fødselsdato</label><input type="date" id="edit-emp-bday-${emp.id}" value="${emp.bday||''}"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Ansættelsesdato</label><input type="date" id="edit-emp-started-${emp.id}" value="${emp.started||''}"></div>
             <div class="form-group" style="margin:0"><label class="form-label">Feriedage pr. år</label><input type="number" id="edit-emp-vacdays-${emp.id}" value="${emp.vacDays||25}" min="0" max="50"></div>
             <div class="form-group" style="margin:0"><label class="form-label">Kan logge ind</label>
               <select id="edit-emp-canlogin-${emp.id}">
@@ -2443,13 +2447,15 @@ async function createEmployee(){
   // Generate ID from name
   const id=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z]/g,'').slice(0,10)+'_'+Date.now().toString().slice(-4);
   const initials=name.split(' ').map(w=>w[0]?.toUpperCase()||'').join('').slice(0,2);
-  const emp={id,name,email,initials,canLogin,isAdmin:false,vacDays,week6Hours:0,bday:null,started:null};
+  const bday=document.getElementById('new-emp-bday')?.value||null;
+  const started=document.getElementById('new-emp-started')?.value||null;
+  const emp={id,name,email,initials,canLogin,isAdmin:false,vacDays,week6Hours:0,bday,started};
   EMPLOYEES.push(emp);
   // Save to Firebase
   await db.collection('settings').doc('employees').set({[id]:emp},{merge:true});
   toast(name+' oprettet ✓');
   window._editEmpId=null;
-  ['new-emp-name','new-emp-email'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+  ['new-emp-name','new-emp-email','new-emp-bday','new-emp-started'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
   render();}
 
 async function saveEmployee(empId){
@@ -2459,7 +2465,9 @@ async function saveEmployee(empId){
   const email=document.getElementById('edit-emp-email-'+empId)?.value?.trim()||emp.email;
   const vacDays=parseInt(document.getElementById('edit-emp-vacdays-'+empId)?.value)||emp.vacDays||25;
   const canLogin=document.getElementById('edit-emp-canlogin-'+empId)?.value==='true';
-  emp.name=name; emp.email=email; emp.vacDays=vacDays; emp.canLogin=canLogin;
+  const bday2=document.getElementById('edit-emp-bday-'+empId)?.value||emp.bday||null;
+  const started2=document.getElementById('edit-emp-started-'+empId)?.value||emp.started||null;
+  emp.name=name; emp.email=email; emp.vacDays=vacDays; emp.canLogin=canLogin; emp.bday=bday2; emp.started=started2;
   emp.initials=name.split(' ').map(w=>w[0]?.toUpperCase()||'').join('').slice(0,2);
   await db.collection('settings').doc('employees').set({[empId]:{...emp}},{merge:true});
   toast('Gemt ✓');
