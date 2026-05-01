@@ -455,6 +455,7 @@ auth.onAuthStateChanged(async user => {
     await loadEmpDates();
     await loadFritvalgList();
     await loadOvertimeList();
+    await loadCustomEmployees();
     window._messages = await loadMessages(currentUser.id, currentUser.isAdmin);
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
     render();
@@ -2102,6 +2103,25 @@ async function loadOvertimeList(){
   }catch(e){console.error('loadOvertimeList error:',e);}
 }
 
+async function loadCustomEmployees(){
+  try{
+    const doc=await db.collection('settings').doc('employees').get();
+    if(doc.exists){
+      const data=doc.data();
+      for(const [id,emp] of Object.entries(data)){
+        const existing=EMPLOYEES.find(e=>e.id===id);
+        if(existing){
+          // Update existing employee with saved data
+          Object.assign(existing,emp);
+        } else {
+          // Add new employee created via admin
+          EMPLOYEES.push(emp);
+        }
+      }
+    }
+  }catch(e){console.error('loadCustomEmployees error:',e);}
+}
+
 async function saveFritvalgList(list){
   try{
     await db.collection('settings').doc('fritvalglist').set({ids: list});
@@ -2360,26 +2380,91 @@ async function toggleFritvalg(empId, checked){
 
 function renderAdminManage(){
   const allEmps=EMPLOYEES.filter(e=>!e.isAdmin);
-  return`<div class="card">
-    <div class="sec-title">Medarbejderliste</div>
-    <div class="info-box info-box-info" style="margin-bottom:14px">Rediger navne og e-mails direkte i koden (EMPLOYEES-arrayet øverst i filen). Kontakt din udvikler eller brug Firebase Console til at oprette/slette login-konti.</div>
+  const editId=window._editEmpId;
+  return`
+  ${renderOvertimeManage()}
+  ${renderFritvalgManage()}
+  <div class="card">
+    <div class="sec-title">Opret ny medarbejder</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="form-group" style="margin:0"><label class="form-label">Fulde navn</label><input type="text" id="new-emp-name" placeholder="f.eks. Mette Hansen"></div>
+      <div class="form-group" style="margin:0"><label class="form-label">E-mail</label><input type="email" id="new-emp-email" placeholder="mette@eksempel.dk"></div>
+      <div class="form-group" style="margin:0"><label class="form-label">Feriedage pr. år</label><input type="number" id="new-emp-vacdays" value="25" min="0" max="50"></div>
+      <div class="form-group" style="margin:0"><label class="form-label">Kan logge ind</label>
+        <select id="new-emp-canlogin"><option value="true">Ja</option><option value="false">Nej (admin-styret)</option></select>
+      </div>
+    </div>
+    <div class="info-box info-box-warning" style="margin-bottom:10px">Husk også at oprette login i <strong>Firebase Console → Authentication → Add user</strong> med samme e-mail og kodeord 123456.</div>
+    <button class="btn btn-primary" onclick="createEmployee()">Opret medarbejder</button>
+  </div>
+  <div class="card">
+    <div class="sec-title">Medarbejdere</div>
     ${allEmps.map(emp=>{
       const ci=empIndex(emp.id);
       const {bg,tc}=empColor(ci>=0?ci:0);
-      return`<div class="emp-row" style="cursor:default">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="av" style="background:${bg};color:${tc}">${emp.initials}</div>
-          <div>
-            <div class="emp-name" style="cursor:default">${emp.name}${!emp.canLogin?'<span class="tag-no-login">Styres af admin</span>':''}</div>
-            <div class="emp-email">${emp.email||'Ingen e-mail'}</div>
+      const isEditing=editId===emp.id;
+      return`<div style="border-bottom:1px solid #f0f0eb;padding:10px 0">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="av" style="background:${bg};color:${tc}">${emp.initials}</div>
+            <div>
+              <div style="font-size:14px;font-weight:500">${emp.name}${!emp.canLogin?'<span class="tag-no-login">Styres af admin</span>':''}</div>
+              <div style="font-size:12px;color:#aaa">${emp.email||'Ingen e-mail'}</div>
+            </div>
           </div>
+          <button class="btn-sm" style="background:#e8f0fd;color:#1a4fa8;border:none;cursor:pointer" onclick="window._editEmpId=window._editEmpId==='${emp.id}'?null:'${emp.id}';render()">✏️ Rediger</button>
         </div>
+        ${isEditing?`<div style="background:#f9f9f7;border-radius:10px;padding:12px;margin-top:10px;border:1px solid #e0e0da">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div class="form-group" style="margin:0"><label class="form-label">Navn</label><input type="text" id="edit-emp-name-${emp.id}" value="${emp.name}"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">E-mail</label><input type="email" id="edit-emp-email-${emp.id}" value="${emp.email||''}"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Feriedage pr. år</label><input type="number" id="edit-emp-vacdays-${emp.id}" value="${emp.vacDays||25}" min="0" max="50"></div>
+            <div class="form-group" style="margin:0"><label class="form-label">Kan logge ind</label>
+              <select id="edit-emp-canlogin-${emp.id}">
+                <option value="true" ${emp.canLogin?'selected':''}>Ja</option>
+                <option value="false" ${!emp.canLogin?'selected':''}>Nej</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" style="flex:1" onclick="saveEmployee('${emp.id}')">Gem ændringer</button>
+            <button class="btn" style="background:#f0f0eb;flex:1" onclick="window._editEmpId=null;render()">Annuller</button>
+          </div>
+        </div>`:''}
       </div>`;}).join('')}
-  </div>
-  <div class="card">
-    <div class="sec-title">Opret ny bruger i Firebase</div>
-    <div class="info-box info-box-warning">For at oprette login til en ny medarbejder: gå til <strong>Firebase Console → Authentication → Users → Add user</strong> og indtast deres e-mail og et midlertidigt kodeord. Tilføj derefter medarbejderen i EMPLOYEES-arrayet i HTML-filen.</div>
   </div>`;}
+
+async function createEmployee(){
+  const name=document.getElementById('new-emp-name')?.value?.trim();
+  const email=document.getElementById('new-emp-email')?.value?.trim();
+  const vacDays=parseInt(document.getElementById('new-emp-vacdays')?.value)||25;
+  const canLogin=document.getElementById('new-emp-canlogin')?.value==='true';
+  if(!name){toast('Skriv et navn');return;}
+  // Generate ID from name
+  const id=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z]/g,'').slice(0,10)+'_'+Date.now().toString().slice(-4);
+  const initials=name.split(' ').map(w=>w[0]?.toUpperCase()||'').join('').slice(0,2);
+  const emp={id,name,email,initials,canLogin,isAdmin:false,vacDays,week6Hours:0,bday:null,started:null};
+  EMPLOYEES.push(emp);
+  // Save to Firebase
+  await db.collection('settings').doc('employees').set({[id]:emp},{merge:true});
+  toast(name+' oprettet ✓');
+  window._editEmpId=null;
+  ['new-emp-name','new-emp-email'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+  render();}
+
+async function saveEmployee(empId){
+  const emp=EMPLOYEES.find(e=>e.id===empId);
+  if(!emp)return;
+  const name=document.getElementById('edit-emp-name-'+empId)?.value?.trim()||emp.name;
+  const email=document.getElementById('edit-emp-email-'+empId)?.value?.trim()||emp.email;
+  const vacDays=parseInt(document.getElementById('edit-emp-vacdays-'+empId)?.value)||emp.vacDays||25;
+  const canLogin=document.getElementById('edit-emp-canlogin-'+empId)?.value==='true';
+  emp.name=name; emp.email=email; emp.vacDays=vacDays; emp.canLogin=canLogin;
+  emp.initials=name.split(' ').map(w=>w[0]?.toUpperCase()||'').join('').slice(0,2);
+  await db.collection('settings').doc('employees').set({[empId]:{...emp}},{merge:true});
+  toast('Gemt ✓');
+  window._editEmpId=null;
+  render();}
 
 // ============================================================
 // ADMIN ACTIONS
