@@ -261,6 +261,62 @@ function fmt(d){
   return new Date(d).toLocaleDateString('da-DK',{day:'2-digit',month:'short',year:'numeric'});}
 function typeLabel(t){return{vacation:'Ferie',week6:'6. ferieuge',fritvalg:'Fritvalgskonto',overtime:'Overarbejde',flex:'Afspadsering',sick:'Sygedag','emp-other':'Andet fravær'}[t]||t}
 // ============================================================
+// FERIE-ÅR & 6. FERIEUGE-ÅR HELPERS
+// ------------------------------------------------------------
+// Systemet kører med to ferieår sideløbende, så medarbejdere
+// kan registrere ferie både i nuværende og kommende år.
+//
+//   - Ferieår: 1. september – 31. august
+//     Et "ferieår-tal" angiver året hvor det STARTER. Fx 2025
+//     dækker 1. sep 2025 – 31. aug 2026 og kaldes "2025/2026".
+//   - 6. ferieuge-år: 1. januar – 31. december (kalenderår).
+//
+// Registreringer tilskrives automatisk det rigtige år ud fra
+// from-datoen. Hver saldo har sit eget budget og kan ikke
+// gå i minus uafhængigt af hinanden.
+//
+// VIGTIGT for fremtidige opdateringer: Når der laves nye
+// felter eller funktioner der vedrører ferie eller 6. ferieuge,
+// skal de respektere de to-årige saldi. calcStats returnerer:
+//   vacUsedCur/vacLeftCur  – nuværende ferieår (sep–aug)
+//   vacUsedNext/vacLeftNext – næste ferieår
+//   w6UsedCur/w6LeftCur    – nuværende 6. ferieuge-år (jan–dec)
+//   w6UsedNext/w6LeftNext  – næste 6. ferieuge-år
+// (vacUsed/vacLeft/w6Used/w6Left bevares som aliaser for cur).
+// ============================================================
+function getVacYearOf(dateStr){
+  // Returnerer start-året for det ferieår dateStr falder i.
+  // Sep–dec → samme år. Jan–aug → år-1.
+  if(!dateStr)return null;
+  const parts=dateStr.split('-');
+  const y=parseInt(parts[0]);
+  const m=parseInt(parts[1]);
+  return m>=9?y:y-1;
+}
+function getW6YearOf(dateStr){
+  // 6. ferieuge bruger almindelig kalenderår.
+  if(!dateStr)return null;
+  return parseInt(dateStr.split('-')[0]);
+}
+function currentVacYear(){
+  const now=new Date();
+  return now.getMonth()>=8?now.getFullYear():now.getFullYear()-1;
+}
+function nextVacYear(){return currentVacYear()+1;}
+function currentW6Year(){return new Date().getFullYear();}
+function nextW6Year(){return currentW6Year()+1;}
+function fmtVacYear(y){return y+'/'+(y+1);}
+function fmtW6Year(y){return ''+y;}
+function getEmpW6Budget(emp, year){
+  // Returnerer budget for 6. ferieuge for et givet kalenderår.
+  // Falder tilbage til emp.week6Hours hvis intet er sat for året.
+  if(!emp)return 0;
+  if(emp.week6HoursByYear&&emp.week6HoursByYear[year]!==undefined){
+    return parseFloat(emp.week6HoursByYear[year])||0;
+  }
+  return parseFloat(emp.week6Hours)||0;
+}
+// ============================================================
 // BIRTHDAY & JUBILEE HELPERS
 // ============================================================
 const JUBILEE_YEARS = [10, 25, 30, 40, 50];
@@ -366,10 +422,31 @@ function empIndex(id){return EMPLOYEES.findIndex(e=>e.id===id)}
 function calcStats(empId, reqs){
   const empDef=EMPLOYEES.find(e=>e.id===empId);
   const empVacDays=empDef?.vacDays||VAC_DAYS;
-  const empWeek6Hours=empDef?.week6Hours||0;
   const r = reqs.filter(x=>x.userId===empId);
-  const vacUsed = r.filter(x=>x.type==='vacation'&&x.status==='approved'&&!x.archived).reduce((s,x)=>s+x.days,0);
-  const w6Used  = r.filter(x=>x.type==='week6'&&x.status==='approved'&&!x.archived).reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
+
+  // To-årig ferie (sep–aug)
+  const curVac=currentVacYear();
+  const nextVac=nextVacYear();
+  const vacReqs=r.filter(x=>x.type==='vacation'&&x.status==='approved'&&!x.archived);
+  const vacUsedCur=vacReqs.filter(x=>getVacYearOf(x.from)===curVac).reduce((s,x)=>s+x.days,0);
+  const vacUsedNext=vacReqs.filter(x=>getVacYearOf(x.from)===nextVac).reduce((s,x)=>s+x.days,0);
+  const vacLeftCur=empVacDays-vacUsedCur;
+  const vacLeftNext=empVacDays-vacUsedNext;
+
+  // To-årig 6. ferieuge (jan–dec)
+  const curW6Year=currentW6Year();
+  const nextW6YearV=nextW6Year();
+  const w6Reqs=r.filter(x=>x.type==='week6'&&x.status==='approved'&&!x.archived);
+  const w6UsedCurRaw=w6Reqs.filter(x=>getW6YearOf(x.from)===curW6Year).reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
+  const w6UsedNextRaw=w6Reqs.filter(x=>getW6YearOf(x.from)===nextW6YearV).reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
+  const w6BudgetCur=getEmpW6Budget(empDef,curW6Year);
+  const w6BudgetNext=getEmpW6Budget(empDef,nextW6YearV);
+  const w6UsedCur=Math.round(w6UsedCurRaw*100)/100;
+  const w6UsedNext=Math.round(w6UsedNextRaw*100)/100;
+  const w6LeftCur=Math.round((w6BudgetCur-w6UsedCurRaw)*100)/100;
+  const w6LeftNext=Math.round((w6BudgetNext-w6UsedNextRaw)*100)/100;
+
+  // Sygdom & resten (uændret)
   const sickDays= r.filter(x=>x.type==='sick'&&!x.archived).reduce((s,x)=>s+x.days,0);
   const ownSickDays= r.filter(x=>x.type==='sick'&&!x.archived&&x.sickType!=='barn').reduce((s,x)=>s+x.days,0);
   const otHours = r.filter(x=>x.type==='overtime'&&x.status!=='rejected'&&!x.archived).reduce((s,x)=>s+(x.hours||0),0);
@@ -378,9 +455,20 @@ function calcStats(empId, reqs){
   const bonus   = hasSickBonus ? Math.max(0, SICK_BONUS_MAX - ownSickDays*SICK_BONUS_PER_DAY) : null;
   const overtimeBank = OVERTIME_EMP.includes(empId)?calcOvertimeBank(empId,reqs):null;
   const flexBank = overtimeBank!==null?Math.round((overtimeBank-flexHours)*100)/100:null;
-  const w6UsedR=Math.round(w6Used*100)/100;
-  const w6LeftR=Math.round((empWeek6Hours-w6Used)*100)/100;
-  return{vacUsed,vacLeft:empVacDays-vacUsed,w6Used:w6UsedR,w6Left:w6LeftR,w6Budget:empWeek6Hours,sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank};
+
+  return{
+    // To-årige felter
+    vacYearCur:curVac, vacYearNext:nextVac,
+    vacUsedCur, vacLeftCur, vacUsedNext, vacLeftNext,
+    w6YearCur:curW6Year, w6YearNext:nextW6YearV,
+    w6UsedCur, w6LeftCur, w6BudgetCur,
+    w6UsedNext, w6LeftNext, w6BudgetNext,
+    // Aliaser for bagudkompatibilitet — peger på nuværende år
+    vacUsed:vacUsedCur, vacLeft:vacLeftCur,
+    w6Used:w6UsedCur, w6Left:w6LeftCur, w6Budget:w6BudgetCur,
+    // Resten
+    sickDays,ownSickDays,otHours,flexHours,bonus,hasSickBonus,overtimeBank,flexBank
+  };
 }
 
 // ============================================================
@@ -644,17 +732,35 @@ function renderDashboard(stats, myReqs){
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px">
     <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#6c63d4'" onmouseout="this.style.borderColor='#e5e5e0'">
-      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Ferie tilbage</div>
-      <div style="font-size:32px;font-weight:700;color:#6c63d4;line-height:1">${stats.vacLeft}</div>
-      <div style="font-size:12px;color:#aaa;margin-top:6px">af ${25} dage</div>
-      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#6c63d4;border-radius:2px;width:${Math.min(100,Math.round((stats.vacLeft/25)*100))}%"></div></div>
+      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Ferie</div>
+      <div style="font-size:11px;color:#6c63d4;font-weight:600;margin-bottom:8px">${fmtVacYear(stats.vacYearCur)}</div>
+      <div style="font-size:32px;font-weight:700;color:${stats.vacLeftCur<0?'#a32020':'#6c63d4'};line-height:1">${stats.vacLeftCur}</div>
+      <div style="font-size:12px;color:#aaa;margin-top:6px">af ${VAC_DAYS} dage</div>
+      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:${stats.vacLeftCur<0?'#e24b4a':'#6c63d4'};border-radius:2px;width:${Math.min(100,Math.max(0,Math.round((stats.vacLeftCur/VAC_DAYS)*100)))}%"></div></div>
+    </div>
+
+    <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#9c8fee'" onmouseout="this.style.borderColor='#e5e5e0'">
+      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Ferie</div>
+      <div style="font-size:11px;color:#9c8fee;font-weight:600;margin-bottom:8px">${fmtVacYear(stats.vacYearNext)}</div>
+      <div style="font-size:32px;font-weight:700;color:${stats.vacLeftNext<0?'#a32020':'#9c8fee'};line-height:1">${stats.vacLeftNext}</div>
+      <div style="font-size:12px;color:#aaa;margin-top:6px">af ${VAC_DAYS} dage</div>
+      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:${stats.vacLeftNext<0?'#e24b4a':'#9c8fee'};border-radius:2px;width:${Math.min(100,Math.max(0,Math.round((stats.vacLeftNext/VAC_DAYS)*100)))}%"></div></div>
     </div>
 
     <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#1d9e75'" onmouseout="this.style.borderColor='#e5e5e0'">
-      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">6. ferieuge</div>
-      <div style="font-size:32px;font-weight:700;color:#1d9e75;line-height:1">${stats.w6Left}</div>
-      <div style="font-size:12px;color:#aaa;margin-top:6px">timer tilbage</div>
-      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1d9e75;border-radius:2px;width:${Math.min(100,Math.round((stats.w6Left/5)*100))}%"></div></div>
+      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">6. ferieuge</div>
+      <div style="font-size:11px;color:#1d9e75;font-weight:600;margin-bottom:8px">${fmtW6Year(stats.w6YearCur)}</div>
+      <div style="font-size:32px;font-weight:700;color:${stats.w6LeftCur<0?'#a32020':'#1d9e75'};line-height:1">${stats.w6LeftCur}</div>
+      <div style="font-size:12px;color:#aaa;margin-top:6px">af ${stats.w6BudgetCur} timer</div>
+      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:${stats.w6LeftCur<0?'#e24b4a':'#1d9e75'};border-radius:2px;width:${stats.w6BudgetCur>0?Math.min(100,Math.max(0,Math.round((stats.w6LeftCur/stats.w6BudgetCur)*100))):0}%"></div></div>
+    </div>
+
+    <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#52c4a0'" onmouseout="this.style.borderColor='#e5e5e0'">
+      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">6. ferieuge</div>
+      <div style="font-size:11px;color:#52c4a0;font-weight:600;margin-bottom:8px">${fmtW6Year(stats.w6YearNext)}</div>
+      <div style="font-size:32px;font-weight:700;color:${stats.w6LeftNext<0?'#a32020':'#52c4a0'};line-height:1">${stats.w6LeftNext}</div>
+      <div style="font-size:12px;color:#aaa;margin-top:6px">af ${stats.w6BudgetNext} timer</div>
+      <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:${stats.w6LeftNext<0?'#e24b4a':'#52c4a0'};border-radius:2px;width:${stats.w6BudgetNext>0?Math.min(100,Math.max(0,Math.round((stats.w6LeftNext/stats.w6BudgetNext)*100))):0}%"></div></div>
     </div>
 
     ${hasOvertimeBank?`<div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#1a4fa8'" onmouseout="this.style.borderColor='#e5e5e0'">
@@ -828,13 +934,23 @@ async function submitReq(){
   const days=type==='week6'?1:calcDays(from,effectiveTo||from);
   if(type==='vacation'||type==='week6'){
     const stats=calcStats(currentUser.id,allRequests);
-    const left=type==='vacation'?stats.vacLeft:stats.w6Left;
+    let left, yearLabel;
+    if(type==='vacation'){
+      const yr=getVacYearOf(from);
+      if(yr===stats.vacYearCur){left=stats.vacLeftCur;yearLabel=fmtVacYear(stats.vacYearCur);}
+      else if(yr===stats.vacYearNext){left=stats.vacLeftNext;yearLabel=fmtVacYear(stats.vacYearNext);}
+      else {left=0;yearLabel=fmtVacYear(yr);}
+    } else {
+      const yr=getW6YearOf(from);
+      if(yr===stats.w6YearCur){left=stats.w6LeftCur;yearLabel=fmtW6Year(stats.w6YearCur);}
+      else if(yr===stats.w6YearNext){left=stats.w6LeftNext;yearLabel=fmtW6Year(stats.w6YearNext);}
+      else {left=0;yearLabel=fmtW6Year(yr);}
+    }
     const label=type==='vacation'?'ferie':'6. ferieuge';
-    const unit=type==='vacation'?'dage':'timer';
     const requested=type==='week6'?hours:days;
     if(requested>left){
       const over=Math.round((requested-left)*100)/100;
-      const ok=confirm('Du har kun '+left+' '+(type==='week6'?'timer':'dag'+(left!==1?'e':''))+' tilbage af din '+label+'.\n\nDu søger '+requested+' '+(type==='week6'?'timer':'dage')+' – det er '+over+' '+(type==='week6'?'timer':'dag'+(over!==1?'e':''))+' mere end du har til rådighed.\n\nOverskydende vil stå som minus på din saldo.\n\nVil du alligevel sende anmodningen?');
+      const ok=confirm('Du har kun '+left+' '+(type==='week6'?'timer':'dag'+(left!==1?'e':''))+' tilbage af din '+label+' for '+yearLabel+'.\n\nDu søger '+requested+' '+(type==='week6'?'timer':'dage')+' – det er '+over+' '+(type==='week6'?'timer':'dag'+(over!==1?'e':''))+' mere end du har til rådighed.\n\nOverskydende vil stå som minus på din saldo.\n\nVil du alligevel sende anmodningen?');
       if(!ok)return;
     }
   }
@@ -922,23 +1038,44 @@ function renderAktivitet(myReqs){
   </div>`;}
 
 function renderSaldoTab(stats, myReqs){
-  const vacPct=Math.min(100,Math.round((stats.vacUsed/VAC_DAYS)*100));
-  const w6Pct=Math.min(100,Math.round((stats.w6Used/WEEK6_DAYS)*100));
+  const vacPctCur=stats.vacUsedCur>0?Math.min(100,Math.round((stats.vacUsedCur/VAC_DAYS)*100)):0;
+  const vacPctNext=stats.vacUsedNext>0?Math.min(100,Math.round((stats.vacUsedNext/VAC_DAYS)*100)):0;
+  const w6PctCur=stats.w6BudgetCur>0?Math.min(100,Math.round((stats.w6UsedCur/stats.w6BudgetCur)*100)):0;
+  const w6PctNext=stats.w6BudgetNext>0?Math.min(100,Math.round((stats.w6UsedNext/stats.w6BudgetNext)*100)):0;
   const sickPct=Math.min(100,Math.round((stats.sickDays/10)*100));
   const flexReqs=myReqs.filter(r=>r.type==='flex'&&r.status!=='rejected');
   return`<div class="card">
     <div class="sec-title">Feriesaldo</div>
-    <div style="margin-bottom:18px">
-      <div class="info-row"><span class="info-label">Ferie i alt (5 uger = 25 dage)</span></div>
-      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsed} dage</span></div>
-      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:#2d7a1f">${stats.vacLeft} dage</span></div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${vacPct}%;background:#6c63d4"></div></div>
+    <div class="info-box info-box-info" style="margin-bottom:14px">Ferieåret løber fra 1. september – 31. august. Du har ${VAC_DAYS} dage pr. ferieår.</div>
+    <div style="margin-bottom:18px;padding:14px;background:#faf9ff;border-radius:10px;border:1px solid #ede8fd">
+      <div style="font-size:13px;font-weight:600;color:#6c63d4;margin-bottom:10px">Ferieår ${fmtVacYear(stats.vacYearCur)} <span style="font-size:11px;color:#aaa;font-weight:400">(1. sep ${stats.vacYearCur} – 31. aug ${stats.vacYearCur+1})</span></div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsedCur} dage</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.vacLeftCur<0?'#a32020':'#2d7a1f'}">${stats.vacLeftCur} dage${stats.vacLeftCur<0?' ⚠️ (minus)':''}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${vacPctCur}%;background:${stats.vacLeftCur<0?'#e24b4a':'#6c63d4'}"></div></div>
     </div>
-    <div>
-      <div class="info-row"><span class="info-label">6. ferieuge (timer · 1. jan – 31. dec)</span></div>
-      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.w6Used} timer</span></div>
-      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.w6Left<0?'#a32020':'#2d7a1f'}">${stats.w6Left} timer${stats.w6Left<0?' ⚠️ (minus)':''}</span></div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,w6Pct))}%;background:${stats.w6Left<0?'#e24b4a':'#1d9e75'}"></div></div>
+    <div style="padding:14px;background:#f7f5ff;border-radius:10px;border:1px solid #e8e0fc">
+      <div style="font-size:13px;font-weight:600;color:#9c8fee;margin-bottom:10px">Ferieår ${fmtVacYear(stats.vacYearNext)} <span style="font-size:11px;color:#aaa;font-weight:400">(1. sep ${stats.vacYearNext} – 31. aug ${stats.vacYearNext+1})</span></div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsedNext} dage</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.vacLeftNext<0?'#a32020':'#2d7a1f'}">${stats.vacLeftNext} dage${stats.vacLeftNext<0?' ⚠️ (minus)':''}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${vacPctNext}%;background:${stats.vacLeftNext<0?'#e24b4a':'#9c8fee'}"></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="sec-title">6. ferieuge</div>
+    <div class="info-box info-box-info" style="margin-bottom:14px">6. ferieuge løber fra 1. januar – 31. december (kalenderår).</div>
+    <div style="margin-bottom:14px;padding:14px;background:#f0fbf7;border-radius:10px;border:1px solid #d6f0e3">
+      <div style="font-size:13px;font-weight:600;color:#1d9e75;margin-bottom:10px">${fmtW6Year(stats.w6YearCur)}</div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.w6UsedCur} timer</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.w6LeftCur<0?'#a32020':'#2d7a1f'}">${stats.w6LeftCur} timer${stats.w6LeftCur<0?' ⚠️ (minus)':''}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,w6PctCur))}%;background:${stats.w6LeftCur<0?'#e24b4a':'#1d9e75'}"></div></div>
+      <div style="font-size:11px;color:#aaa;margin-top:6px">Budget: ${stats.w6BudgetCur} timer</div>
+    </div>
+    <div style="padding:14px;background:#eff9f4;border-radius:10px;border:1px solid #d0ecdf">
+      <div style="font-size:13px;font-weight:600;color:#52c4a0;margin-bottom:10px">${fmtW6Year(stats.w6YearNext)}</div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.w6UsedNext} timer</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.w6LeftNext<0?'#a32020':'#2d7a1f'}">${stats.w6LeftNext} timer${stats.w6LeftNext<0?' ⚠️ (minus)':''}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,w6PctNext))}%;background:${stats.w6LeftNext<0?'#e24b4a':'#52c4a0'}"></div></div>
+      <div style="font-size:11px;color:#aaa;margin-top:6px">Budget: ${stats.w6BudgetNext} timer</div>
     </div>
   </div>
   <div class="card">
@@ -1194,15 +1331,25 @@ function renderMyProfile(){
 
   <div class="card">
     <div class="sec-title">Min feriesaldo</div>
-    <div style="margin-bottom:16px">
-      <div class="info-row"><span class="info-label">Ferie brugt</span><span class="info-val">${stats.vacUsed} dage</span></div>
-      <div class="info-row"><span class="info-label">Ferie tilbage</span><span class="info-val" style="color:#2d7a1f">${stats.vacLeft} dage</span></div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${vacPct}%;background:#6c63d4"></div></div>
+    <div style="margin-bottom:14px;padding:12px;background:#faf9ff;border-radius:10px;border:1px solid #ede8fd">
+      <div style="font-size:12px;font-weight:600;color:#6c63d4;margin-bottom:8px">Ferieår ${fmtVacYear(stats.vacYearCur)}</div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsedCur} dage</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.vacLeftCur<0?'#a32020':'#2d7a1f'}">${stats.vacLeftCur} dage</span></div>
     </div>
-    <div>
-      <div class="info-row"><span class="info-label">6. ferieuge brugt</span><span class="info-val">${stats.w6Used} timer</span></div>
-      <div class="info-row"><span class="info-label">6. ferieuge tilbage</span><span class="info-val" style="color:#2d7a1f">${stats.w6Left} timer</span></div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${w6Pct}%;background:#1d9e75"></div></div>
+    <div style="margin-bottom:14px;padding:12px;background:#f7f5ff;border-radius:10px;border:1px solid #e8e0fc">
+      <div style="font-size:12px;font-weight:600;color:#9c8fee;margin-bottom:8px">Ferieår ${fmtVacYear(stats.vacYearNext)}</div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsedNext} dage</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.vacLeftNext<0?'#a32020':'#2d7a1f'}">${stats.vacLeftNext} dage</span></div>
+    </div>
+    <div style="margin-bottom:14px;padding:12px;background:#f0fbf7;border-radius:10px;border:1px solid #d6f0e3">
+      <div style="font-size:12px;font-weight:600;color:#1d9e75;margin-bottom:8px">6. ferieuge ${fmtW6Year(stats.w6YearCur)}</div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.w6UsedCur} timer</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.w6LeftCur<0?'#a32020':'#2d7a1f'}">${stats.w6LeftCur} timer</span></div>
+    </div>
+    <div style="padding:12px;background:#eff9f4;border-radius:10px;border:1px solid #d0ecdf">
+      <div style="font-size:12px;font-weight:600;color:#52c4a0;margin-bottom:8px">6. ferieuge ${fmtW6Year(stats.w6YearNext)}</div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.w6UsedNext} timer</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.w6LeftNext<0?'#a32020':'#2d7a1f'}">${stats.w6LeftNext} timer</span></div>
     </div>
   </div>
 
@@ -1654,13 +1801,30 @@ async function renderAdminEmployees(){
     </div>
     <div class="card">
       <div class="sec-title">Saldo overblik</div>
+      <div style="font-size:11px;color:#6c63d4;font-weight:600;margin:4px 0 6px">Ferieår ${fmtVacYear(stats.vacYearCur)}</div>
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-label">Ferie brugt</div><div class="stat-value">${stats.vacUsed}</div><div class="stat-sub">af ${VAC_DAYS} dage</div></div>
-        <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:#2d7a1f">${stats.vacLeft}</div></div>
-        <div class="stat-card"><div class="stat-label">6. ferieuge brugt</div><div class="stat-value">${stats.w6Used}t</div></div>
-        <div class="stat-card"><div class="stat-label">6. ferieuge tilbage</div><div class="stat-value" style="color:#2d7a1f">${stats.w6Left}t</div></div>
+        <div class="stat-card"><div class="stat-label">Ferie brugt</div><div class="stat-value">${stats.vacUsedCur}</div><div class="stat-sub">af ${VAC_DAYS} dage</div></div>
+        <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:${stats.vacLeftCur<0?'#a32020':'#2d7a1f'}">${stats.vacLeftCur}</div></div>
+      </div>
+      <div style="font-size:11px;color:#9c8fee;font-weight:600;margin:14px 0 6px">Ferieår ${fmtVacYear(stats.vacYearNext)}</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Ferie brugt</div><div class="stat-value">${stats.vacUsedNext}</div><div class="stat-sub">af ${VAC_DAYS} dage</div></div>
+        <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:${stats.vacLeftNext<0?'#a32020':'#2d7a1f'}">${stats.vacLeftNext}</div></div>
+      </div>
+      <div style="font-size:11px;color:#1d9e75;font-weight:600;margin:14px 0 6px">6. ferieuge ${fmtW6Year(stats.w6YearCur)}</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Brugt</div><div class="stat-value">${stats.w6UsedCur}t</div><div class="stat-sub">af ${stats.w6BudgetCur}t</div></div>
+        <div class="stat-card"><div class="stat-label">Tilbage</div><div class="stat-value" style="color:${stats.w6LeftCur<0?'#a32020':'#2d7a1f'}">${stats.w6LeftCur}t</div></div>
+      </div>
+      <div style="font-size:11px;color:#52c4a0;font-weight:600;margin:14px 0 6px">6. ferieuge ${fmtW6Year(stats.w6YearNext)}</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Brugt</div><div class="stat-value">${stats.w6UsedNext}t</div><div class="stat-sub">af ${stats.w6BudgetNext}t</div></div>
+        <div class="stat-card"><div class="stat-label">Tilbage</div><div class="stat-value" style="color:${stats.w6LeftNext<0?'#a32020':'#2d7a1f'}">${stats.w6LeftNext}t</div></div>
+      </div>
+      <div style="font-size:11px;color:#aaa;font-weight:600;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px">Sygdom & overarbejde</div>
+      <div class="stat-grid">
         <div class="stat-card"><div class="stat-label">Sygedage</div><div class="stat-value" style="color:#1a4fa8">${stats.sickDays}</div></div>
-        ${stats.hasSickBonus?`<div class="stat-card"><div class="stat-label">Sygdomsbonus</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus.toLocaleString('da-DK')} kr</div></div>`:''}
+        ${stats.hasSickBonus?`<div class="stat-card"><div class="stat-label">Sygdomsbonus</div><div class="stat-value" style="color:#2d7a1f">${stats.bonus.toLocaleString('da-DK')} kr</div></div>`:'<div></div>'}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
         <div class="stat-card"><div class="stat-label">Overarb. timer</div><div class="stat-value" style="color:#1a4fa8">${stats.otHours}t</div></div>
@@ -1742,7 +1906,7 @@ async function renderAdminEmployees(){
           </div>
         </div>
         <div class="mini-stats">
-          <div class="mini-stat">Ferie<span>${stats.vacUsed}/${VAC_DAYS}</span></div>
+          <div class="mini-stat">Ferie ${fmtVacYear(stats.vacYearCur)}<span>${stats.vacUsedCur}/${VAC_DAYS}</span></div>
           <div class="mini-stat">Sygedage<span style="color:#1a4fa8">${stats.sickDays}</span></div>
           <div class="mini-stat">Overtid<span style="color:#1a4fa8">${stats.otHours}t</span></div>
         </div>
@@ -1759,12 +1923,22 @@ function checkAdminWeek6Budget(empId){
   const stats=calcStats(empId,allRequests);
   const type=document.getElementById('admin-rtype')?.value;
   const hours=parseFloat(document.getElementById('admin-rhours')?.value||0);
+  const from=document.getElementById('admin-rfrom')?.value;
   const preview=document.getElementById('admin-week6-preview');
   if(!preview)return;
-  if(type==='week6'&&hours>0&&stats.w6Left<hours){
-    const over=Math.round((hours-stats.w6Left)*100)/100;
-    preview.style.display='block';
-    preview.innerHTML='⚠️ Medarbejderen har kun '+stats.w6Left+' timer tilbage. '+over+' timer vil gå i minus.';
+  if(type==='week6'&&hours>0){
+    let left, yearLabel;
+    const yr=from?getW6YearOf(from):stats.w6YearCur;
+    if(yr===stats.w6YearCur){left=stats.w6LeftCur;yearLabel=fmtW6Year(stats.w6YearCur);}
+    else if(yr===stats.w6YearNext){left=stats.w6LeftNext;yearLabel=fmtW6Year(stats.w6YearNext);}
+    else {left=0;yearLabel=fmtW6Year(yr);}
+    if(left<hours){
+      const over=Math.round((hours-left)*100)/100;
+      preview.style.display='block';
+      preview.innerHTML='⚠️ Medarbejderen har kun '+left+' timer tilbage for '+yearLabel+'. '+over+' timer vil gå i minus.';
+    } else {
+      preview.style.display='none';
+    }
   } else {
     preview.style.display='none';
   }}
@@ -1991,7 +2165,8 @@ function renderYearEnd(){
     const s=calcStats(emp.id,allRequests);
     return{...emp,sickDays:s.sickDays,ownSickDays:s.ownSickDays,bonus:s.bonus,hasSickBonus:s.hasSickBonus};
   });
-  const prevPeriodKey='sickPeriod_'+(now.getMonth()<11?now.getFullYear()-1:now.getFullYear());
+  const curVac=currentVacYear();
+  const curW6=currentW6Year();
 
   return`<div class="card">
     <div class="sec-title">Årsafslutning – bonusperiode</div>
@@ -2004,10 +2179,23 @@ function renderYearEnd(){
     </div>
     <div style="height:1px;background:#f0f0eb;margin:20px 0"></div>
     <div class="sec-title">Ferieår – afslutning 31. august</div>
-    <div class="info-box info-box-info" style="margin-bottom:14px">Ferieåret løber fra 1. september til 31. august. Generer rapport og nulstil ferie inden nyt ferieår starter 1. september.</div>
+    <div class="info-box info-box-info" style="margin-bottom:14px">Ferieåret løber fra 1. september til 31. august. Systemet kører to ferieår sideløbende. Generer rapporten og nulstil ferie for det netop afsluttede ferieår.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+      <button class="btn btn-primary" onclick="generateVacationPDF(${curVac})">📄 Ferie-rapport ${fmtVacYear(curVac)}</button>
+      <button class="btn btn-primary" onclick="generateVacationPDF(${curVac+1})" style="background:#9c8fee">📄 Ferie-rapport ${fmtVacYear(curVac+1)}</button>
+    </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-      <button class="btn btn-primary" onclick="generateVacationPDF()">📄 Download ferie-rapport</button>
-      <button class="btn" style="background:#fde8e8;color:#a32020;border:1px solid #f5b8b8" onclick="resetVacation()">🔄 Nulstil ferie (1. sep)</button>
+      <button class="btn" style="background:#fde8e8;color:#a32020;border:1px solid #f5b8b8" onclick="resetVacation(${curVac})">🔄 Nulstil ferie ${fmtVacYear(curVac)} (1. sep)</button>
+    </div>
+    <div style="height:1px;background:#f0f0eb;margin:20px 0"></div>
+    <div class="sec-title">6. ferieuge – afslutning 31. december</div>
+    <div class="info-box info-box-info" style="margin-bottom:14px">6. ferieuge løber fra 1. januar til 31. december. Systemet kører to år sideløbende. Generer rapport og nulstil 6. ferieuge for det netop afsluttede kalenderår.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn btn-primary" onclick="generateW6PDF(${curW6})" style="background:#1d9e75">📄 6. ferieuge-rapport ${fmtW6Year(curW6)}</button>
+      <button class="btn btn-primary" onclick="generateW6PDF(${curW6+1})" style="background:#52c4a0">📄 6. ferieuge-rapport ${fmtW6Year(curW6+1)}</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+      <button class="btn" style="background:#fde8e8;color:#a32020;border:1px solid #f5b8b8" onclick="resetWeek6(${curW6})">🔄 Nulstil 6. ferieuge ${fmtW6Year(curW6)} (1. jan)</button>
     </div>
   </div>
   <div class="card">
@@ -2036,44 +2224,97 @@ function renderYearEnd(){
   </div>
   <div class="card">
     <div class="sec-title">6. ferieuge – indstil timer pr. medarbejder</div>
-    <div class="info-box info-box-warning" style="margin-bottom:14px">Her kan du indstille det maksimale antal timer for 6. ferieuge for hver medarbejder, inkl. overførte timer fra sidste år.</div>
+    <div class="info-box info-box-warning" style="margin-bottom:14px">Her kan du indstille det maksimale antal timer for 6. ferieuge for hver medarbejder for de to aktuelle kalenderår. Inkl. eventuelle overførte timer fra sidste år.</div>
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0eb;font-size:11px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">
+      <div>Medarbejder</div>
+      <div style="text-align:right;min-width:120px">${fmtW6Year(currentW6Year())}</div>
+      <div style="text-align:right;min-width:120px">${fmtW6Year(nextW6Year())}</div>
+    </div>
     ${emps.map(emp=>{
       const ci=empIndex(emp.id);
       const {bg,tc}=empColor(ci>=0?ci:0);
-      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f0">
+      const curBudget=getEmpW6Budget(emp,currentW6Year());
+      const nextBudget=getEmpW6Budget(emp,nextW6Year());
+      return`<div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f0">
         <div style="display:flex;align-items:center;gap:10px">
           <div class="av" style="background:${bg};color:${tc}">${emp.initials}</div>
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${emp.name}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <label style="font-size:12px;color:#aaa">Timer i alt:</label>
-          <input type="number" min="0" max="500" step="0.5" value="${emp.week6Hours||0}"
-            style="width:80px;border:1px solid #e0e0da;border-radius:8px;padding:6px 10px;font-size:13px"
-            onchange="saveWeek6Hours('${emp.id}',this.value)">
+        <div style="display:flex;align-items:center;gap:6px;min-width:120px;justify-content:flex-end">
+          <input type="number" min="0" max="500" step="0.5" value="${curBudget}"
+            style="width:80px;border:1px solid #e0e0da;border-radius:8px;padding:6px 10px;font-size:13px;text-align:right"
+            onchange="saveWeek6HoursForYear('${emp.id}',${currentW6Year()},this.value)">
+          <span style="font-size:11px;color:#aaa">t</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;min-width:120px;justify-content:flex-end">
+          <input type="number" min="0" max="500" step="0.5" value="${nextBudget}"
+            style="width:80px;border:1px solid #e0e0da;border-radius:8px;padding:6px 10px;font-size:13px;text-align:right"
+            onchange="saveWeek6HoursForYear('${emp.id}',${nextW6Year()},this.value)">
+          <span style="font-size:11px;color:#aaa">t</span>
         </div>
       </div>`;}).join('')}
   </div>`;}
 
 async function saveWeek6Hours(empId, hours){
+  // Bagudkompatibel: gemmer nuværende-år budget både i den gamle nøgle
+  // (settings/week6hours) og i den nye to-årige struktur.
+  await saveWeek6HoursForYear(empId, currentW6Year(), hours);
+}
+
+async function saveWeek6HoursForYear(empId, year, hours){
   const emp=EMPLOYEES.find(e=>e.id===empId);
   if(!emp)return;
-  emp.week6Hours=parseFloat(hours)||0;
+  const val=parseFloat(hours)||0;
+  if(!emp.week6HoursByYear)emp.week6HoursByYear={};
+  emp.week6HoursByYear[year]=val;
+  // Hold også emp.week6Hours opdateret for nuværende år så bagudkompatibel
+  // visning et andet sted i koden stadig viser noget fornuftigt.
+  if(year===currentW6Year())emp.week6Hours=val;
   try{
-    await db.collection('settings').doc('week6hours').set(
-      {[empId]: parseFloat(hours)||0},
+    // Ny struktur: settings/week6hoursByYear → {empId: {year: timer, ...}, ...}
+    await db.collection('settings').doc('week6hoursByYear').set(
+      {[empId]: {[year]: val}},
       {merge: true}
     );
-  }catch(e){console.error('saveWeek6Hours error:',e);}
+    // Bevar også den gamle struktur for nuværende år, så ældre versioner
+    // af koden kan læse værdien.
+    if(year===currentW6Year()){
+      await db.collection('settings').doc('week6hours').set(
+        {[empId]: val},
+        {merge: true}
+      );
+    }
+  }catch(e){console.error('saveWeek6HoursForYear error:',e);}
   toast('Gemt ✓');}
 
 async function loadWeek6Hours(){
+  // Læs både den gamle (year-løse) og den nye to-årige struktur.
   try{
-    const doc=await db.collection('settings').doc('week6hours').get();
-    if(doc.exists){
-      const data=doc.data();
+    // Ny struktur: settings/week6hoursByYear → {empId: {year: timer, ...}}
+    const docNew=await db.collection('settings').doc('week6hoursByYear').get();
+    if(docNew.exists){
+      const data=docNew.data();
+      for(const emp of EMPLOYEES){
+        if(data[emp.id]){
+          emp.week6HoursByYear={...(emp.week6HoursByYear||{}),...data[emp.id]};
+        }
+      }
+    }
+    // Gammel struktur: settings/week6hours → {empId: timer} (gælder for nuværende år)
+    const docOld=await db.collection('settings').doc('week6hours').get();
+    if(docOld.exists){
+      const data=docOld.data();
+      const curY=currentW6Year();
       for(const emp of EMPLOYEES){
         if(data[emp.id]!==undefined){
-          emp.week6Hours=parseFloat(data[emp.id])||0;
+          const v=parseFloat(data[emp.id])||0;
+          emp.week6Hours=v;
+          // Brug kun gamle værdi for nuværende år hvis nye struktur ikke har
+          // sat den specifikt for dette år.
+          if(!emp.week6HoursByYear)emp.week6HoursByYear={};
+          if(emp.week6HoursByYear[curY]===undefined){
+            emp.week6HoursByYear[curY]=v;
+          }
         }
       }
     }
@@ -2237,14 +2478,20 @@ async function resetSickDays(){
   toast('Sygedage nulstillet ✓ – ny periode starter 1. december');
   setTimeout(()=>render(),600);}
 
-function generateVacationPDF(){
+function generateVacationPDF(targetYear){
   const now=new Date();
-  const vacYear=now.getMonth()>=8?now.getFullYear():now.getFullYear()-1;
+  // Hvis intet år angives, brug nuværende ferieår
+  const vacYear=(typeof targetYear==='number')?targetYear:(now.getMonth()>=8?now.getFullYear():now.getFullYear()-1);
   const emps=EMPLOYEES.filter(e=>!e.isAdmin);
   const rows=emps.map(emp=>{
-    const s=calcStats(emp.id,allRequests);
-    const w6=s.w6Used||0;
-    return{name:emp.name,vacUsed:s.vacUsed,vacLeft:s.vacLeft,w6Used:w6,w6Budget:emp.week6Hours||0};
+    // Beregn ferie-tal kun for det specifikke år
+    const vacReqs=allRequests.filter(r=>r.userId===emp.id&&r.type==='vacation'&&r.status==='approved'&&!r.archived&&getVacYearOf(r.from)===vacYear);
+    const w6Reqs=allRequests.filter(r=>r.userId===emp.id&&r.type==='week6'&&r.status==='approved'&&!r.archived&&getW6YearOf(r.from)===vacYear);
+    const vacUsed=vacReqs.reduce((s,r)=>s+r.days,0);
+    const empVacDays=emp.vacDays||VAC_DAYS;
+    const vacLeft=empVacDays-vacUsed;
+    const w6Used=Math.round(w6Reqs.reduce((s,r)=>s+(r.hours||r.days*7.4||0),0)*100)/100;
+    return{name:emp.name,vacUsed,vacLeft,w6Used,w6Budget:getEmpW6Budget(emp,vacYear)};
   });
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <style>
@@ -2268,43 +2515,118 @@ function generateVacationPDF(){
       <th>Medarbejder</th>
       <th class="r">Feriedage brugt</th>
       <th class="r">Feriedage tilbage</th>
-      <th class="r">6. ferieuge brugt (t)</th>
-      <th class="r">6. ferieuge budget (t)</th>
     </tr></thead>
     <tbody>
       ${rows.map(r=>`<tr>
         <td>${r.name}</td>
         <td class="r ${r.vacUsed>0?'red':''}">${r.vacUsed}</td>
         <td class="r ${r.vacLeft<0?'red':'green'}">${r.vacLeft}</td>
-        <td class="r">${r.w6Used}</td>
-        <td class="r">${r.w6Budget}</td>
       </tr>`).join('')}
       <tr class="total">
         <td>I alt</td>
         <td class="r">${rows.reduce((s,r)=>s+r.vacUsed,0)}</td>
         <td class="r">${rows.reduce((s,r)=>s+r.vacLeft,0)}</td>
-        <td class="r">${rows.reduce((s,r)=>s+r.w6Used,0)}</td>
-        <td class="r">–</td>
       </tr>
     </tbody>
   </table>
-  <div class="footer">Tandklinikken &nbsp;|&nbsp; HR Selvbetjening &nbsp;|&nbsp; Ferie: 25 dage pr. medarbejder</div>
+  <div class="footer">Tandklinikken &nbsp;|&nbsp; HR Selvbetjening &nbsp;|&nbsp; Ferie: ${VAC_DAYS} dage pr. medarbejder pr. ferieår</div>
   </body></html>`;
   const w=window.open('','_blank');
   w.document.write(html);
   w.document.close();
   setTimeout(()=>w.print(),500);}
 
-async function resetVacation(){
+function generateW6PDF(targetYear){
   const now=new Date();
-  if(!confirm('Er du sikker?\n\nDette arkiverer al afholdt ferie for det nuværende ferieår og nulstiller saldoen til 0.\n\nHusk at downloade PDF-rapporten inden du nulstiller.'))return;
-  const vacReqs=allRequests.filter(r=>['vacation','week6','fritvalg'].includes(r.type));
-  for(const r of vacReqs){
+  const w6Year=(typeof targetYear==='number')?targetYear:now.getFullYear();
+  const emps=EMPLOYEES.filter(e=>!e.isAdmin);
+  const rows=emps.map(emp=>{
+    const w6Reqs=allRequests.filter(r=>r.userId===emp.id&&r.type==='week6'&&r.status==='approved'&&!r.archived&&getW6YearOf(r.from)===w6Year);
+    const w6Used=Math.round(w6Reqs.reduce((s,r)=>s+(r.hours||r.days*7.4||0),0)*100)/100;
+    const w6Budget=getEmpW6Budget(emp,w6Year);
+    const w6Left=Math.round((w6Budget-w6Used)*100)/100;
+    return{name:emp.name,w6Used,w6Budget,w6Left};
+  });
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body{font-family:Arial,sans-serif;margin:40px;color:#1a1a1a}
+    h1{font-size:22px;font-weight:700;margin-bottom:4px}
+    .sub{font-size:13px;color:#888;margin-bottom:30px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:10px 8px;border-bottom:2px solid #1a1a1a;font-weight:600}
+    th.r{text-align:right}
+    td{padding:10px 8px;border-bottom:1px solid #e5e5e0}
+    td.r{text-align:right}
+    td.red{color:#a32020;font-weight:600}
+    td.green{color:#2d7a1f;font-weight:600}
+    .total td{border-top:2px solid #1a1a1a;font-weight:700;background:#f5f5f0}
+    .footer{margin-top:40px;font-size:11px;color:#aaa}
+  </style></head><body>
+  <h1>6. ferieuge – ${w6Year}</h1>
+  <div class="sub">Periode: 1. januar ${w6Year} – 31. december ${w6Year} &nbsp;|&nbsp; Genereret: ${now.toLocaleDateString('da-DK')}</div>
+  <table>
+    <thead><tr>
+      <th>Medarbejder</th>
+      <th class="r">Budget (timer)</th>
+      <th class="r">Brugt (timer)</th>
+      <th class="r">Tilbage (timer)</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(r=>`<tr>
+        <td>${r.name}</td>
+        <td class="r">${r.w6Budget}</td>
+        <td class="r ${r.w6Used>0?'red':''}">${r.w6Used}</td>
+        <td class="r ${r.w6Left<0?'red':'green'}">${r.w6Left}</td>
+      </tr>`).join('')}
+      <tr class="total">
+        <td>I alt</td>
+        <td class="r">${rows.reduce((s,r)=>s+r.w6Budget,0)}</td>
+        <td class="r">${rows.reduce((s,r)=>s+r.w6Used,0)}</td>
+        <td class="r">${rows.reduce((s,r)=>s+r.w6Left,0)}</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="footer">Tandklinikken &nbsp;|&nbsp; HR Selvbetjening &nbsp;|&nbsp; 6. ferieuge løber 1. jan – 31. dec</div>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),500);}
+
+async function resetVacation(targetYear){
+  const now=new Date();
+  const vacYear=(typeof targetYear==='number')?targetYear:(now.getMonth()>=8?now.getFullYear():now.getFullYear()-1);
+  if(!confirm('Er du sikker?\n\nDette arkiverer al afholdt ferie og fritvalgskonto for ferieåret '+vacYear+'/'+(vacYear+1)+' og nulstiller saldoen til 0.\n\nDet andet ferieår påvirkes ikke.\n\nHusk at downloade PDF-rapporten inden du nulstiller.'))return;
+  // Arkiver kun ferie + fritvalg for det specifikke ferieår.
+  // 6. ferieuge nulstilles separat via resetWeek6.
+  const reqsToArchive=allRequests.filter(r=>
+    ['vacation','fritvalg'].includes(r.type)&&
+    !r.archived&&
+    getVacYearOf(r.from)===vacYear
+  );
+  for(const r of reqsToArchive){
     await db.collection('requests').doc(r.id).update({archived:true,archivedAt:new Date().toISOString()});
     const idx=allRequests.findIndex(x=>x.id===r.id);
     if(idx>=0)allRequests[idx].archived=true;
   }
-  toast('Ferie nulstillet ✓ – nyt ferieår starter 1. september');
+  toast('Ferie nulstillet for '+vacYear+'/'+(vacYear+1)+' ✓');
+  setTimeout(()=>render(),600);}
+
+async function resetWeek6(targetYear){
+  const now=new Date();
+  const w6Year=(typeof targetYear==='number')?targetYear:now.getFullYear();
+  if(!confirm('Er du sikker?\n\nDette arkiverer al afholdt 6. ferieuge for året '+w6Year+' og nulstiller saldoen til 0.\n\nDet andet 6. ferieuge-år påvirkes ikke.\n\nHusk at downloade PDF-rapporten inden du nulstiller.'))return;
+  const reqsToArchive=allRequests.filter(r=>
+    r.type==='week6'&&
+    !r.archived&&
+    getW6YearOf(r.from)===w6Year
+  );
+  for(const r of reqsToArchive){
+    await db.collection('requests').doc(r.id).update({archived:true,archivedAt:new Date().toISOString()});
+    const idx=allRequests.findIndex(x=>x.id===r.id);
+    if(idx>=0)allRequests[idx].archived=true;
+  }
+  toast('6. ferieuge nulstillet for '+w6Year+' ✓');
   setTimeout(()=>render(),600);}
 
 function renderOvertimeManage(){
