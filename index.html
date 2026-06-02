@@ -131,9 +131,6 @@
   .sidebar-emp-item .av-sm{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0}
   .admin-content{flex:1;padding:20px;max-width:calc(100% - 220px);overflow-x:hidden}
 
-  /* Edit form */
-  .edit-req-form{background:#f9f9f7;border:1px solid #e0e0da;border-radius:10px;padding:12px;margin-top:8px}
-
   /* Toast */
   #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:white;padding:10px 20px;border-radius:10px;font-size:13px;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap}
   #toast.show{opacity:1}
@@ -550,89 +547,11 @@ auth.onAuthStateChanged(async user => {
     window._messages = await loadMessages(currentUser.id, currentUser.isAdmin);
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
     render();
-    requestNotificationPermission();
-    startMessagePolling();
   } else {
     currentUser = null;
-    stopMessagePolling();
     renderLogin();
   }
 });
-
-// ============================================================
-// BROWSER NOTIFIKATIONER
-// ============================================================
-let _notifSeenIds = new Set();
-let _pollingInterval = null;
-
-function requestNotificationPermission(){
-  if(!('Notification' in window)) return;
-  if(Notification.permission === 'default'){
-    Notification.requestPermission();
-  }
-}
-
-function sendBrowserNotification(title, body){
-  if(!('Notification' in window)) return;
-  if(Notification.permission !== 'granted') return;
-  const n = new Notification(title, {
-    body,
-    icon: 'https://cdn.jsdelivr.net/npm/twemoji@14/assets/72x72/1f4ac.png',
-    tag: 'hr-besked',
-    renotify: true
-  });
-  n.onclick = function(){
-    window.focus();
-    tab = currentUser?.isAdmin ? 'messages' : 'messages';
-    render();
-    n.close();
-  };
-}
-
-async function checkForNewMessages(){
-  if(!currentUser) return;
-  try {
-    const fresh = await loadMessages(currentUser.id, currentUser.isAdmin);
-    const myId = currentUser.id;
-    const newMsgs = fresh.filter(m => {
-      // Only messages TO me, not from me
-      if(m.toId !== myId) return false;
-      // Not already seen
-      if(_notifSeenIds.has(m.id)) return false;
-      // Not already read by me
-      if((m.readBy||[]).includes(myId)) return false;
-      return true;
-    });
-    newMsgs.forEach(m => {
-      _notifSeenIds.add(m.id);
-      const from = m.fromName || 'Ny besked';
-      sendBrowserNotification('📩 Ny besked fra ' + from, m.text.length > 80 ? m.text.slice(0,80)+'…' : m.text);
-    });
-    // Also seed seen IDs on first load so we don't notify old messages
-    if(_notifSeenIds.size === 0 || newMsgs.length === 0){
-      fresh.forEach(m => {
-        if((m.readBy||[]).includes(myId)) _notifSeenIds.add(m.id);
-      });
-    }
-    window._messages = fresh;
-  } catch(e){ console.warn('Polling fejl:', e); }
-}
-
-function startMessagePolling(){
-  // Seed already-read messages so we don't spam on login
-  const myId = currentUser?.id;
-  if(myId && window._messages){
-    window._messages.forEach(m => {
-      if((m.readBy||[]).includes(myId) || m.fromId === myId) _notifSeenIds.add(m.id);
-    });
-  }
-  stopMessagePolling();
-  _pollingInterval = setInterval(checkForNewMessages, 60000); // Tjek hvert minut
-}
-
-function stopMessagePolling(){
-  if(_pollingInterval){ clearInterval(_pollingInterval); _pollingInterval = null; }
-}
 
 async function doLogin(){
   const email = document.getElementById('l-email').value.trim();
@@ -1114,10 +1033,7 @@ function renderAktivitet(myReqs){
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
           <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.hours?'· '+r.hours+'t':r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-          <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
-          ${r.status!=='rejected'?`<button class="btn-sm btn-danger" onclick="empDeleteReq('${r.id}')" title="Slet denne registrering">Slet</button>`:''}
-        </div>
+        <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
       </div>`).join('')}
   </div>`;}
 
@@ -1517,6 +1433,11 @@ async function renderAdminMessages(){
     if(!empGroups[otherId]) empGroups[otherId]={name:otherName,msgs:[]};
     empGroups[otherId].msgs.push(m);
   }
+  // Add any employee not yet messaged to allow starting new conversation
+  const allEmps = EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin);
+  for(const emp of allEmps){
+    if(!empGroups[emp.id]) empGroups[emp.id]={name:emp.name,msgs:[],noMessages:true};
+  }
 
   // Mark all as read
   for(const m of msgs){
@@ -1525,8 +1446,8 @@ async function renderAdminMessages(){
     }
   }
 
-  // Only show employees who have an actual conversation
   const empIds = Object.keys(empGroups).sort((a,b)=>{
+    // Sort: unread first, then by latest message
     const aUnread=empGroups[a].msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
     const bUnread=empGroups[b].msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
     if(aUnread!==bUnread) return bUnread-aUnread;
@@ -1535,73 +1456,49 @@ async function renderAdminMessages(){
     return bLatest-aLatest;
   });
 
-  const showNewMsg = window._showNewMsgForm||false;
-
-  return`
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-    <div style="font-size:15px;font-weight:600;color:#1a1a1a">Beskeder</div>
-    <button class="btn btn-primary" style="font-size:13px;padding:7px 16px" onclick="window._showNewMsgForm=!window._showNewMsgForm;render()">
-      ${showNewMsg?'✕ Luk':'✉️ Ny besked'}
-    </button>
-  </div>
-
-  ${showNewMsg?`<div class="card" style="margin-bottom:14px;border:2px solid #6c63d4">
-    <div class="sec-title">Ny besked</div>
-    <div class="form-group">
-      <label class="form-label">Vælg medarbejder</label>
-      <select id="admin-msg-to">${EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin).map(e=>`<option value="${e.id}" data-name="${e.name}">${e.name}</option>`).join('')}</select>
+  return`<div class="card" style="margin-bottom:14px">
+    <div class="sec-title">Ny besked til medarbejder</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Vælg medarbejder</label>
+        <select id="admin-msg-to">${EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin).map(e=>`<option value="${e.id}" data-name="${e.name}">${e.name}</option>`).join('')}</select>
+      </div>
     </div>
     <div class="form-group">
-      <textarea id="admin-msg-text" placeholder="Skriv besked til medarbejderen..." style="width:100%;min-height:80px;resize:none;font-size:13px"></textarea>
+      <textarea id="admin-msg-text" placeholder="Skriv besked til medarbejderen..." style="width:100%;min-height:70px;resize:none;font-size:13px"></textarea>
     </div>
     <button class="btn btn-primary" onclick="sendAdminNewMessage()">Send besked</button>
-  </div>`:''}
-
-  ${empIds.length===0?`<div class="card"><div class="empty">Ingen beskeder endnu</div></div>`
-  :empIds.map(empId=>{
+  </div>
+  `+empIds.map(empId=>{
     const ci=empIndex(empId);
     const {bg,tc}=empColor(ci>=0?ci:0);
     const group=empGroups[empId];
     const unread=group.msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
-    const lastMsg=group.msgs[group.msgs.length-1];
-    const isOpen=window._openConvId===empId;
-    return`<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">
-      <div onclick="window._openConvId=window._openConvId==='${empId}'?null:'${empId}';render()"
-        style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;background:${isOpen?'#f5f3ff':'white'};transition:background 0.15s">
-        <div class="av" style="background:${bg};color:${tc};flex-shrink:0">${EMPLOYEES.find(e=>e.id===empId)?.initials||'?'}</div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:14px;font-weight:600;color:#1a1a1a">${group.name}</span>
-            ${unread>0?`<span class="badge b-pending">${unread} ny${unread!==1?'e':''}</span>`:''}
-          </div>
-          <div style="font-size:12px;color:#aaa;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px">
-            ${lastMsg?(lastMsg.fromId==='louise'?'Dig: ':'')+lastMsg.text:''}
-          </div>
-        </div>
-        <div style="font-size:11px;color:#ccc;flex-shrink:0">${lastMsg?new Date(lastMsg.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short'}):''}</div>
-        <div style="font-size:12px;color:#aaa">${isOpen?'▲':'▼'}</div>
+    return`<div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div class="av" style="background:${bg};color:${tc}">${EMPLOYEES.find(e=>e.id===empId)?.initials||'?'}</div>
+        <div style="font-size:15px;font-weight:600">${group.name}</div>
+        ${unread>0?`<span class="badge b-pending">${unread} ny${unread!==1?'e':''}</span>`:''}
       </div>
-      ${isOpen?`<div style="border-top:1px solid #f0f0eb;padding:14px 16px">
-        <div style="max-height:340px;overflow-y:auto;margin-bottom:12px">
-          ${group.msgs.map(m=>{
-            const isMe=m.fromId==='louise';
-            const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-            return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:10px">
-              <div style="display:flex;align-items:flex-start;gap:6px;${isMe?'flex-direction:row-reverse':''}">
-                <div style="max-width:75%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:9px 13px;font-size:13px;line-height:1.4">${m.text}</div>
-                <button onclick="deleteMessage('${m.id}')" style="background:none;border:none;cursor:pointer;color:#ddd;font-size:13px;padding:2px 4px;flex-shrink:0;margin-top:4px" title="Slet">🗑</button>
-              </div>
-              <div style="font-size:11px;color:#bbb;margin-top:3px">${isMe?'Dig':m.fromName} · ${time}</div>
-            </div>`;
-          }).join('')}
-        </div>
-        <div style="display:flex;gap:8px">
-          <textarea id="admin-reply-${empId}" placeholder="Skriv svar til ${group.name}..." style="flex:1;min-height:50px;resize:none;font-size:13px;border:1px solid #e0e0da;border-radius:8px;padding:8px 12px"></textarea>
-          <button class="btn btn-primary" style="align-self:flex-end" onclick="sendAdminReply('${empId}','${group.name}')">Send</button>
-        </div>
-      </div>`:''}
+      <div style="max-height:300px;overflow-y:auto;margin-bottom:12px">
+        ${group.msgs.map(m=>{
+          const isMe=m.fromId==='louise';
+          const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+          return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:8px">
+            <div style="display:flex;align-items:flex-start;gap:6px">
+              <div style="max-width:80%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:8px 12px;font-size:13px">${m.text}</div>
+              <button onclick="deleteMessage('${m.id}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:2px 4px;flex-shrink:0;margin-top:2px" title="Slet besked">🗑</button>
+            </div>
+            <div style="font-size:11px;color:#aaa;margin-top:2px">${isMe?'Dig':m.fromName} · ${time}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:8px">
+        <textarea id="admin-reply-${empId}" placeholder="Skriv svar..." style="flex:1;min-height:50px;resize:none;font-size:13px"></textarea>
+        <button class="btn btn-primary" style="align-self:flex-end" onclick="sendAdminReply('${empId}','${group.name}')">Send</button>
+      </div>
     </div>`;
-  }).join('')}`;}
+  }).join('');}
 
 async function deleteMessage(msgId){
   if(!confirm('Vil du slette denne besked?')) return;
@@ -1619,8 +1516,6 @@ async function sendAdminNewMessage(){
   if(!toId){toast('Vælg en medarbejder');return;}
   await sendMessage('louise','Louise',toId,toName,text);
   window._messages = await loadMessages('louise',true);
-  window._showNewMsgForm=false;
-  window._openConvId=toId;
   toast('Besked sendt ✓');
   setTimeout(()=>render(),300);}
 
@@ -1760,10 +1655,11 @@ function renderAdminDash(){
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${todaySick.length}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">${todaySick.length>0?todaySick.map(r=>r.userName.split(' ')[0]).join(', '):'ingen syge'}</div>
     </div>
-    <div onclick="switchTab('sick')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#f5b8b8'" onmouseout="this.style.borderColor='#e5e5e0'">
+    <div onclick="showMonthSickPopup()" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#f5b8b8'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Sygedage denne måned</div>
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${monthSick.reduce((s,r)=>s+r.days,0)}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">på tværs af ${[...new Set(monthSick.map(r=>r.userId))].length} medarbejder${[...new Set(monthSick.map(r=>r.userId))].length!==1?'e':''}</div>
+      <div style="font-size:11px;color:#6c63d4;margin-top:4px;font-weight:500">Klik for detaljer →</div>
     </div>
     <div onclick="switchTab('employees')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#6c63d4'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Medarbejdere</div>
@@ -1981,75 +1877,18 @@ async function renderAdminEmployees(){
     </div>
     <div class="card">
       <div class="sec-title">Alle registreringer</div>
-      ${empReqs.length===0?'<div class="empty">Ingen registreringer</div>':empReqs.map(r=>{
-        const isEditingThis=(window._editReqId===r.id);
-        return`<div style="border-bottom:1px solid #f0f0eb;padding:8px 0">
-          <div class="req-item" style="border-bottom:none;padding:3px 0">
-            <div>
-              <div class="req-type">${typeLabel(r.type)}</div>
-              <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
-              ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
-              ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
-            </div>
-            <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-              <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
-              <button class="btn-sm" style="background:#e8f0fd;color:#1a4fa8;border:none" onclick="window._editReqId=window._editReqId==='${r.id}'?null:'${r.id}';render()">✏️</button>
-              <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
-            </div>
-          </div>
-          ${isEditingThis?`<div class="edit-req-form">
-            <div style="font-size:12px;font-weight:600;color:#6c63d4;margin-bottom:10px">Rediger registrering</div>
-            <div class="form-row" style="margin-bottom:10px">
-              <div class="form-group" style="margin:0">
-                <label class="form-label">Type</label>
-                <select id="er-type-${r.id}">
-                  <option value="vacation" ${r.type==='vacation'?'selected':''}>Ferie</option>
-                  <option value="week6" ${r.type==='week6'?'selected':''}>6. ferieuge</option>
-                  <option value="fritvalg" ${r.type==='fritvalg'?'selected':''}>Fritvalgskonto</option>
-                  <option value="overtime" ${r.type==='overtime'?'selected':''}>Overarbejde</option>
-                  <option value="flex" ${r.type==='flex'?'selected':''}>Afspadsering</option>
-                  <option value="sick" ${r.type==='sick'&&r.sickType!=='barn'?'selected':''}>Sygdom – egen</option>
-                  <option value="sick-barn" ${r.type==='sick'&&r.sickType==='barn'?'selected':''}>Sygdom – barn syg</option>
-                  <option value="course" ${r.type==='course'?'selected':''}>Kursusdag</option>
-                  <option value="other-boern" ${r.type==='other-boern'?'selected':''}>Fravær – Børn</option>
-                  <option value="other-laege" ${r.type==='other-laege'?'selected':''}>Andet fravær – Læge</option>
-                  <option value="other-sygehus" ${r.type==='other-sygehus'?'selected':''}>Andet fravær – Sygehus</option>
-                  <option value="other-andet" ${r.type==='other-andet'?'selected':''}>Andet fravær – Andet</option>
-                </select>
-              </div>
-              <div class="form-group" style="margin:0">
-                <label class="form-label">Status</label>
-                <select id="er-status-${r.id}">
-                  <option value="approved" ${r.status==='approved'?'selected':''}>Godkendt</option>
-                  <option value="pending" ${r.status==='pending'?'selected':''}>Afventer</option>
-                  <option value="rejected" ${r.status==='rejected'?'selected':''}>Afvist</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-row" style="margin-bottom:10px">
-              <div class="form-group" style="margin:0">
-                <label class="form-label">Fra dato</label>
-                <input type="date" id="er-from-${r.id}" value="${r.from}">
-              </div>
-              <div class="form-group" style="margin:0">
-                <label class="form-label">Til dato</label>
-                <input type="date" id="er-to-${r.id}" value="${r.to}">
-              </div>
-            </div>
-            <div class="form-group" style="margin-bottom:10px">
-              <label class="form-label">Timer (hvis relevant)</label>
-              <input type="number" id="er-hours-${r.id}" value="${r.hours||''}" min="0.5" max="24" step="0.5" placeholder="f.eks. 4">
-            </div>
-            <div class="form-group" style="margin-bottom:10px">
-              <label class="form-label">Bemærkning</label>
-              <input type="text" id="er-note-${r.id}" value="${r.note||''}" placeholder="Valgfri bemærkning">
-            </div>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" style="flex:1" onclick="editReq('${r.id}')">Gem ændringer</button>
-              <button class="btn" style="background:#f0f0eb;flex:1" onclick="window._editReqId=null;render()">Annuller</button>
-            </div>
-          </div>`:''}
-        </div>`;}).join('')}
+      ${empReqs.length===0?'<div class="empty">Ingen registreringer</div>':empReqs.map(r=>`<div class="req-item">
+        <div>
+          <div class="req-type">${typeLabel(r.type)}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
+          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
+          ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+          <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
+        </div>
+      </div>`).join('')}
     </div>`;}
 
   const allEmps=EMPLOYEES.filter(e=>!e.isAdmin);
@@ -2977,31 +2816,6 @@ async function deleteReq(id){
   allRequests=allRequests.filter(r=>r.id!==id);
   toast('Slettet');render();}
 
-async function editReq(id){
-  const r=allRequests.find(x=>x.id===id);
-  if(!r)return;
-  const typeRaw=document.getElementById('er-type-'+id)?.value;
-  const status=document.getElementById('er-status-'+id)?.value;
-  const from=document.getElementById('er-from-'+id)?.value;
-  const to=document.getElementById('er-to-'+id)?.value;
-  const hoursRaw=parseFloat(document.getElementById('er-hours-'+id)?.value);
-  const note=document.getElementById('er-note-'+id)?.value||'';
-  if(!from||!to){toast('Vælg datoer');return;}
-  if(new Date(to)<new Date(from)){toast('Slutdato skal være efter startdato');return;}
-  // Handle sick subtypes
-  let type=typeRaw;
-  let sickType=r.sickType||null;
-  if(typeRaw==='sick'){type='sick';sickType='own';}
-  else if(typeRaw==='sick-barn'){type='sick';sickType='barn';}
-  else{sickType=null;}
-  const days=calcDays(from,to);
-  const hours=isNaN(hoursRaw)?null:hoursRaw;
-  Object.assign(r,{type,status,from,to,days,hours,note,...(sickType!==null?{sickType}:{sickType:null})});
-  await db.collection('requests').doc(id).update({type,status,from,to,days,hours,note,sickType:sickType||null});
-  toast('Ændringer gemt ✓');
-  window._editReqId=null;
-  render();}
-
 async function submitSick(){
   const empId=document.getElementById('sick-emp')?.value;
   const sickType=document.getElementById('sick-type')?.value;
@@ -3032,6 +2846,80 @@ async function empDeleteReq(id){
 
 function openEmp(id){adminView='detail';adminEmpId=id;render()}
 function goBack(){adminView='list';adminEmpId=null;render()}
+
+// ============================================================
+// SYGEDAGE DENNE MÅNED – POPUP
+// ============================================================
+function showMonthSickPopup(){
+  const now=new Date();
+  const thisMonth=now.toISOString().slice(0,7);
+  const monthName=now.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
+  const monthSick=allRequests.filter(r=>r.type==='sick'&&r.from.startsWith(thisMonth));
+
+  // Gruppér pr. medarbejder
+  const byEmp={};
+  for(const r of monthSick){
+    if(!byEmp[r.userId]) byEmp[r.userId]={name:r.userName,reqs:[]};
+    byEmp[r.userId].reqs.push(r);
+  }
+
+  const rows=Object.values(byEmp).map(e=>{
+    const own=e.reqs.filter(r=>r.sickType!=='barn').reduce((s,r)=>s+r.days,0);
+    const barn=e.reqs.filter(r=>r.sickType==='barn').reduce((s,r)=>s+r.days,0);
+    const empObj=EMPLOYEES.find(x=>x.name===e.name||e.reqs[0]?.userId===x.id);
+    const ci=empObj?empIndex(empObj.id):0;
+    const {bg,tc}=empColor(ci>=0?ci:0);
+    const initials=empObj?.initials||e.name.slice(0,2).toUpperCase();
+    return{name:e.name,own,barn,total:own+barn,reqs:e.reqs,bg,tc,initials};
+  }).sort((a,b)=>b.total-a.total);
+
+  const totalDays=rows.reduce((s,r)=>s+r.total,0);
+
+  // Byg popup HTML
+  const html=`
+  <div id="month-sick-overlay" onclick="if(event.target===this)closeMonthSickPopup()"
+    style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="background:white;border-radius:16px;padding:24px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div>
+          <div style="font-size:16px;font-weight:700;color:#1a1a1a">🤒 Sygedage i ${monthName}</div>
+          <div style="font-size:12px;color:#aaa;margin-top:2px">${totalDays} dag${totalDays!==1?'e':''} i alt</div>
+        </div>
+        <button onclick="closeMonthSickPopup()" style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:#666">✕ Luk</button>
+      </div>
+      ${rows.length===0
+        ?'<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">Ingen sygedage registreret denne måned</div>'
+        :rows.map(r=>`
+        <div style="padding:12px 0;border-bottom:1px solid #f0f0eb">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div style="width:32px;height:32px;border-radius:50%;background:${r.bg};color:${r.tc};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${r.initials}</div>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:600;color:#1a1a1a">${r.name}</div>
+              <div style="font-size:12px;color:#aaa">${r.total} dag${r.total!==1?'e':''} i alt${r.own>0?' · '+r.own+' egen':''} ${r.barn>0?' · '+r.barn+' barn':''}</div>
+            </div>
+            <div style="background:#e8f0fd;color:#1a4fa8;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px">${r.total}d</div>
+          </div>
+          ${r.reqs.map(req=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#f9f9f7;border-radius:7px;margin-bottom:4px;font-size:12px">
+              <span style="color:#555">${req.sickType==='barn'?'🧒 Barn syg':'🤒 Egen sygdom'}</span>
+              <span style="color:#888">${fmt(req.from)}${req.from!==req.to?' – '+fmt(req.to):''} · ${req.days} dag${req.days!==1?'e':''}</span>
+            </div>
+          `).join('')}
+        </div>`).join('')}
+      <button onclick="closeMonthSickPopup();switchTab('sick')" style="width:100%;margin-top:16px;background:#f0f0eb;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer;color:#555;font-weight:500">Gå til sygdomsoversigt →</button>
+    </div>
+  </div>`;
+
+  // Indsæt popup i DOM
+  const existing=document.getElementById('month-sick-overlay');
+  if(existing)existing.remove();
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+
+function closeMonthSickPopup(){
+  const el=document.getElementById('month-sick-overlay');
+  if(el)el.remove();
+}
 </script>
 </body>
 </html>
