@@ -131,6 +131,9 @@
   .sidebar-emp-item .av-sm{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0}
   .admin-content{flex:1;padding:20px;max-width:calc(100% - 220px);overflow-x:hidden}
 
+  /* Edit form */
+  .edit-req-form{background:#f9f9f7;border:1px solid #e0e0da;border-radius:10px;padding:12px;margin-top:8px}
+
   /* Toast */
   #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:white;padding:10px 20px;border-radius:10px;font-size:13px;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap}
   #toast.show{opacity:1}
@@ -1033,7 +1036,10 @@ function renderAktivitet(myReqs){
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
           <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.hours?'· '+r.hours+'t':r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
         </div>
-        <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+          ${r.status!=='rejected'?`<button class="btn-sm btn-danger" onclick="empDeleteReq('${r.id}')" title="Slet denne registrering">Slet</button>`:''}
+        </div>
       </div>`).join('')}
   </div>`;}
 
@@ -1876,18 +1882,75 @@ async function renderAdminEmployees(){
     </div>
     <div class="card">
       <div class="sec-title">Alle registreringer</div>
-      ${empReqs.length===0?'<div class="empty">Ingen registreringer</div>':empReqs.map(r=>`<div class="req-item">
-        <div>
-          <div class="req-type">${typeLabel(r.type)}</div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
-          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
-          ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
-        </div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
-          <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
-        </div>
-      </div>`).join('')}
+      ${empReqs.length===0?'<div class="empty">Ingen registreringer</div>':empReqs.map(r=>{
+        const isEditingThis=(window._editReqId===r.id);
+        return`<div style="border-bottom:1px solid #f0f0eb;padding:8px 0">
+          <div class="req-item" style="border-bottom:none;padding:3px 0">
+            <div>
+              <div class="req-type">${typeLabel(r.type)}</div>
+              <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
+              ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
+              ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+              <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+              <button class="btn-sm" style="background:#e8f0fd;color:#1a4fa8;border:none" onclick="window._editReqId=window._editReqId==='${r.id}'?null:'${r.id}';render()">✏️</button>
+              <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
+            </div>
+          </div>
+          ${isEditingThis?`<div class="edit-req-form">
+            <div style="font-size:12px;font-weight:600;color:#6c63d4;margin-bottom:10px">Rediger registrering</div>
+            <div class="form-row" style="margin-bottom:10px">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Type</label>
+                <select id="er-type-${r.id}">
+                  <option value="vacation" ${r.type==='vacation'?'selected':''}>Ferie</option>
+                  <option value="week6" ${r.type==='week6'?'selected':''}>6. ferieuge</option>
+                  <option value="fritvalg" ${r.type==='fritvalg'?'selected':''}>Fritvalgskonto</option>
+                  <option value="overtime" ${r.type==='overtime'?'selected':''}>Overarbejde</option>
+                  <option value="flex" ${r.type==='flex'?'selected':''}>Afspadsering</option>
+                  <option value="sick" ${r.type==='sick'&&r.sickType!=='barn'?'selected':''}>Sygdom – egen</option>
+                  <option value="sick-barn" ${r.type==='sick'&&r.sickType==='barn'?'selected':''}>Sygdom – barn syg</option>
+                  <option value="course" ${r.type==='course'?'selected':''}>Kursusdag</option>
+                  <option value="other-boern" ${r.type==='other-boern'?'selected':''}>Fravær – Børn</option>
+                  <option value="other-laege" ${r.type==='other-laege'?'selected':''}>Andet fravær – Læge</option>
+                  <option value="other-sygehus" ${r.type==='other-sygehus'?'selected':''}>Andet fravær – Sygehus</option>
+                  <option value="other-andet" ${r.type==='other-andet'?'selected':''}>Andet fravær – Andet</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Status</label>
+                <select id="er-status-${r.id}">
+                  <option value="approved" ${r.status==='approved'?'selected':''}>Godkendt</option>
+                  <option value="pending" ${r.status==='pending'?'selected':''}>Afventer</option>
+                  <option value="rejected" ${r.status==='rejected'?'selected':''}>Afvist</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row" style="margin-bottom:10px">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Fra dato</label>
+                <input type="date" id="er-from-${r.id}" value="${r.from}">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Til dato</label>
+                <input type="date" id="er-to-${r.id}" value="${r.to}">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label">Timer (hvis relevant)</label>
+              <input type="number" id="er-hours-${r.id}" value="${r.hours||''}" min="0.5" max="24" step="0.5" placeholder="f.eks. 4">
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label">Bemærkning</label>
+              <input type="text" id="er-note-${r.id}" value="${r.note||''}" placeholder="Valgfri bemærkning">
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" style="flex:1" onclick="editReq('${r.id}')">Gem ændringer</button>
+              <button class="btn" style="background:#f0f0eb;flex:1" onclick="window._editReqId=null;render()">Annuller</button>
+            </div>
+          </div>`:''}
+        </div>`;}).join('')}
     </div>`;}
 
   const allEmps=EMPLOYEES.filter(e=>!e.isAdmin);
@@ -2814,6 +2877,31 @@ async function deleteReq(id){
   await deleteRequest(id);
   allRequests=allRequests.filter(r=>r.id!==id);
   toast('Slettet');render();}
+
+async function editReq(id){
+  const r=allRequests.find(x=>x.id===id);
+  if(!r)return;
+  const typeRaw=document.getElementById('er-type-'+id)?.value;
+  const status=document.getElementById('er-status-'+id)?.value;
+  const from=document.getElementById('er-from-'+id)?.value;
+  const to=document.getElementById('er-to-'+id)?.value;
+  const hoursRaw=parseFloat(document.getElementById('er-hours-'+id)?.value);
+  const note=document.getElementById('er-note-'+id)?.value||'';
+  if(!from||!to){toast('Vælg datoer');return;}
+  if(new Date(to)<new Date(from)){toast('Slutdato skal være efter startdato');return;}
+  // Handle sick subtypes
+  let type=typeRaw;
+  let sickType=r.sickType||null;
+  if(typeRaw==='sick'){type='sick';sickType='own';}
+  else if(typeRaw==='sick-barn'){type='sick';sickType='barn';}
+  else{sickType=null;}
+  const days=calcDays(from,to);
+  const hours=isNaN(hoursRaw)?null:hoursRaw;
+  Object.assign(r,{type,status,from,to,days,hours,note,...(sickType!==null?{sickType}:{sickType:null})});
+  await db.collection('requests').doc(id).update({type,status,from,to,days,hours,note,sickType:sickType||null});
+  toast('Ændringer gemt ✓');
+  window._editReqId=null;
+  render();}
 
 async function submitSick(){
   const empId=document.getElementById('sick-emp')?.value;
