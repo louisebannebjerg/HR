@@ -595,32 +595,30 @@ async function checkForNewMessages(){
     const newMsgs = fresh.filter(m => {
       if(m.toId !== myId) return false;
       if(_notifSeenIds.has(m.id)) return false;
-      if((m.readBy||[]).includes(myId)) return false;
       return true;
     });
     newMsgs.forEach(m => {
       _notifSeenIds.add(m.id);
-      const from = m.fromName || 'Ny besked';
-      sendBrowserNotification('📩 Ny besked fra ' + from, m.text.length > 80 ? m.text.slice(0,80)+'…' : m.text);
+      // Kun notificer hvis beskeden ikke allerede er læst
+      if(!(m.readBy||[]).includes(myId)){
+        const from = m.fromName || 'Ny besked';
+        sendBrowserNotification('📩 Ny besked fra ' + from, m.text.length > 80 ? m.text.slice(0,80)+'…' : m.text);
+      }
     });
-    if(_notifSeenIds.size === 0 || newMsgs.length === 0){
-      fresh.forEach(m => {
-        if((m.readBy||[]).includes(myId)) _notifSeenIds.add(m.id);
-      });
-    }
     window._messages = fresh;
   } catch(e){ console.warn('Polling fejl:', e); }
 }
 
 function startMessagePolling(){
+  // Seed alle eksisterende beskeder som "set" ved login, så vi kun notificerer NYE
   const myId = currentUser?.id;
   if(myId && window._messages){
     window._messages.forEach(m => {
-      if((m.readBy||[]).includes(myId) || m.fromId === myId) _notifSeenIds.add(m.id);
+      if(m.toId === myId || m.fromId === myId) _notifSeenIds.add(m.id);
     });
   }
   stopMessagePolling();
-  _pollingInterval = setInterval(checkForNewMessages, 60000);
+  _pollingInterval = setInterval(checkForNewMessages, 20000); // Tjek hvert 20. sekund
 }
 
 function stopMessagePolling(){
