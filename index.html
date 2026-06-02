@@ -2852,11 +2852,17 @@ function goBack(){adminView='list';adminEmpId=null;render()}
 // ============================================================
 function showMonthSickPopup(offsetMonths=0){
   const now=new Date();
-  const target=new Date(now.getFullYear(), now.getMonth()+offsetMonths, 1);
-  const thisMonth=target.toISOString().slice(0,7);
+  const targetYear=now.getFullYear();
+  const targetMonth=now.getMonth()+offsetMonths; // 0-indexed, JS handles overflow
+  const target=new Date(targetYear, targetMonth, 1);
+  // Byg YYYY-MM manuelt for at undgå UTC-forskydning
+  const y=target.getFullYear();
+  const m=String(target.getMonth()+1).padStart(2,'0');
+  const thisMonth=y+'-'+m;
   const monthName=target.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
   const monthStart=thisMonth+'-01';
-  const monthEnd=new Date(target.getFullYear(), target.getMonth()+1, 0).toISOString().slice(0,10);
+  const lastDay=new Date(y, target.getMonth()+1, 0).getDate();
+  const monthEnd=y+'-'+m+'-'+String(lastDay).padStart(2,'0');
   const monthSick=allRequests.filter(r=>r.type==='sick'&&r.from>=monthStart&&r.from<=monthEnd);
 
   // Gruppér pr. medarbejder
