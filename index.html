@@ -2855,7 +2855,9 @@ function showMonthSickPopup(offsetMonths=0){
   const target=new Date(now.getFullYear(), now.getMonth()+offsetMonths, 1);
   const thisMonth=target.toISOString().slice(0,7);
   const monthName=target.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
-  const monthSick=allRequests.filter(r=>r.type==='sick'&&r.from.startsWith(thisMonth));
+  const monthStart=thisMonth+'-01';
+  const monthEnd=new Date(target.getFullYear(), target.getMonth()+1, 0).toISOString().slice(0,10);
+  const monthSick=allRequests.filter(r=>r.type==='sick'&&r.from<=monthEnd&&(r.to||r.from)>=monthStart);
 
   // Gruppér pr. medarbejder
   const byEmp={};
