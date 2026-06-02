@@ -2850,10 +2850,11 @@ function goBack(){adminView='list';adminEmpId=null;render()}
 // ============================================================
 // SYGEDAGE DENNE MÅNED – POPUP
 // ============================================================
-function showMonthSickPopup(){
+function showMonthSickPopup(offsetMonths=0){
   const now=new Date();
-  const thisMonth=now.toISOString().slice(0,7);
-  const monthName=now.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
+  const target=new Date(now.getFullYear(), now.getMonth()+offsetMonths, 1);
+  const thisMonth=target.toISOString().slice(0,7);
+  const monthName=target.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
   const monthSick=allRequests.filter(r=>r.type==='sick'&&r.from.startsWith(thisMonth));
 
   // Gruppér pr. medarbejder
@@ -2874,28 +2875,36 @@ function showMonthSickPopup(){
   }).sort((a,b)=>b.total-a.total);
 
   const totalDays=rows.reduce((s,r)=>s+r.total,0);
+  const isCurrentMonth=offsetMonths===0;
 
-  // Byg popup HTML
   const html=`
   <div id="month-sick-overlay" onclick="if(event.target===this)closeMonthSickPopup()"
     style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:white;border-radius:16px;padding:24px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
         <div>
-          <div style="font-size:16px;font-weight:700;color:#1a1a1a">🤒 Sygedage i ${monthName}</div>
+          <div style="font-size:16px;font-weight:700;color:#1a1a1a">🤒 Sygedage</div>
           <div style="font-size:12px;color:#aaa;margin-top:2px">${totalDays} dag${totalDays!==1?'e':''} i alt</div>
         </div>
         <button onclick="closeMonthSickPopup()" style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:#666">✕ Luk</button>
       </div>
+
+      <!-- Månedsvælger -->
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#f5f5f0;border-radius:10px;padding:8px 12px;margin-bottom:18px">
+        <button onclick="showMonthSickPopup(${offsetMonths-1})" style="background:white;border:1px solid #e0e0da;border-radius:7px;padding:5px 12px;cursor:pointer;font-size:14px;color:#555">←</button>
+        <span style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${monthName}</span>
+        <button onclick="showMonthSickPopup(${offsetMonths+1})" ${isCurrentMonth?'disabled style="opacity:0.3;cursor:not-allowed;':'style="'}background:white;border:1px solid #e0e0da;border-radius:7px;padding:5px 12px;cursor:pointer;font-size:14px;color:#555">→</button>
+      </div>
+
       ${rows.length===0
-        ?'<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">Ingen sygedage registreret denne måned</div>'
+        ?`<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">Ingen sygedage registreret i ${monthName}</div>`
         :rows.map(r=>`
         <div style="padding:12px 0;border-bottom:1px solid #f0f0eb">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
             <div style="width:32px;height:32px;border-radius:50%;background:${r.bg};color:${r.tc};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${r.initials}</div>
             <div style="flex:1">
               <div style="font-size:14px;font-weight:600;color:#1a1a1a">${r.name}</div>
-              <div style="font-size:12px;color:#aaa">${r.total} dag${r.total!==1?'e':''} i alt${r.own>0?' · '+r.own+' egen':''} ${r.barn>0?' · '+r.barn+' barn':''}</div>
+              <div style="font-size:12px;color:#aaa">${r.total} dag${r.total!==1?'e':''} i alt${r.own>0?' · '+r.own+' egen':''}${r.barn>0?' · '+r.barn+' barn':''}</div>
             </div>
             <div style="background:#e8f0fd;color:#1a4fa8;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px">${r.total}d</div>
           </div>
@@ -2910,7 +2919,6 @@ function showMonthSickPopup(){
     </div>
   </div>`;
 
-  // Indsæt popup i DOM
   const existing=document.getElementById('month-sick-overlay');
   if(existing)existing.remove();
   document.body.insertAdjacentHTML('beforeend',html);
