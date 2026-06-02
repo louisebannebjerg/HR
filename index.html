@@ -550,11 +550,89 @@ auth.onAuthStateChanged(async user => {
     window._messages = await loadMessages(currentUser.id, currentUser.isAdmin);
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
     render();
+    requestNotificationPermission();
+    startMessagePolling();
   } else {
     currentUser = null;
+    stopMessagePolling();
     renderLogin();
   }
 });
+
+// ============================================================
+// BROWSER NOTIFIKATIONER
+// ============================================================
+let _notifSeenIds = new Set();
+let _pollingInterval = null;
+
+function requestNotificationPermission(){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'default'){
+    Notification.requestPermission();
+  }
+}
+
+function sendBrowserNotification(title, body){
+  if(!('Notification' in window)) return;
+  if(Notification.permission !== 'granted') return;
+  const n = new Notification(title, {
+    body,
+    icon: 'https://cdn.jsdelivr.net/npm/twemoji@14/assets/72x72/1f4ac.png',
+    tag: 'hr-besked',
+    renotify: true
+  });
+  n.onclick = function(){
+    window.focus();
+    tab = currentUser?.isAdmin ? 'messages' : 'messages';
+    render();
+    n.close();
+  };
+}
+
+async function checkForNewMessages(){
+  if(!currentUser) return;
+  try {
+    const fresh = await loadMessages(currentUser.id, currentUser.isAdmin);
+    const myId = currentUser.id;
+    const newMsgs = fresh.filter(m => {
+      // Only messages TO me, not from me
+      if(m.toId !== myId) return false;
+      // Not already seen
+      if(_notifSeenIds.has(m.id)) return false;
+      // Not already read by me
+      if((m.readBy||[]).includes(myId)) return false;
+      return true;
+    });
+    newMsgs.forEach(m => {
+      _notifSeenIds.add(m.id);
+      const from = m.fromName || 'Ny besked';
+      sendBrowserNotification('📩 Ny besked fra ' + from, m.text.length > 80 ? m.text.slice(0,80)+'…' : m.text);
+    });
+    // Also seed seen IDs on first load so we don't notify old messages
+    if(_notifSeenIds.size === 0 || newMsgs.length === 0){
+      fresh.forEach(m => {
+        if((m.readBy||[]).includes(myId)) _notifSeenIds.add(m.id);
+      });
+    }
+    window._messages = fresh;
+  } catch(e){ console.warn('Polling fejl:', e); }
+}
+
+function startMessagePolling(){
+  // Seed already-read messages so we don't spam on login
+  const myId = currentUser?.id;
+  if(myId && window._messages){
+    window._messages.forEach(m => {
+      if((m.readBy||[]).includes(myId) || m.fromId === myId) _notifSeenIds.add(m.id);
+    });
+  }
+  stopMessagePolling();
+  _pollingInterval = setInterval(checkForNewMessages, 60000); // Tjek hvert minut
+}
+
+function stopMessagePolling(){
+  if(_pollingInterval){ clearInterval(_pollingInterval); _pollingInterval = null; }
+}
 
 async function doLogin(){
   const email = document.getElementById('l-email').value.trim();
