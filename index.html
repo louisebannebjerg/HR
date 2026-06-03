@@ -547,11 +547,77 @@ auth.onAuthStateChanged(async user => {
     window._messages = await loadMessages(currentUser.id, currentUser.isAdmin);
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
     render();
+    requestNotificationPermission();
+    startMessagePolling();
   } else {
     currentUser = null;
+    stopMessagePolling();
     renderLogin();
   }
 });
+
+// ============================================================
+// BROWSER NOTIFIKATIONER
+// ============================================================
+let _notifSeenIds = new Set();
+let _pollingInterval = null;
+
+function requestNotificationPermission(){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'default') Notification.requestPermission();
+}
+
+function sendBrowserNotification(title, body){
+  if(!('Notification' in window)) return;
+  if(Notification.permission !== 'granted') return;
+  const n = new Notification(title, {
+    body,
+    icon: 'https://cdn.jsdelivr.net/npm/twemoji@14/assets/72x72/1f4ac.png',
+    tag: 'hr-besked',
+    renotify: true
+  });
+  n.onclick = function(){
+    window.focus();
+    tab = currentUser?.isAdmin ? 'adminmessages' : 'messages';
+    render();
+    n.close();
+  };
+}
+
+async function checkForNewMessages(){
+  if(!currentUser) return;
+  try {
+    const fresh = await loadMessages(currentUser.id, currentUser.isAdmin);
+    const myId = currentUser.id;
+    const newMsgs = fresh.filter(m => {
+      if(m.toId !== myId) return false;
+      if(_notifSeenIds.has(m.id)) return false;
+      return true;
+    });
+    newMsgs.forEach(m => {
+      _notifSeenIds.add(m.id);
+      if(!(m.readBy||[]).includes(myId)){
+        sendBrowserNotification('📩 Ny besked fra ' + (m.fromName||''), m.text.length > 80 ? m.text.slice(0,80)+'…' : m.text);
+      }
+    });
+    window._messages = fresh;
+  } catch(e){ console.warn('Polling fejl:', e); }
+}
+
+function startMessagePolling(){
+  const myId = currentUser?.id;
+  if(myId && window._messages){
+    window._messages.forEach(m => {
+      if(m.toId === myId || m.fromId === myId) _notifSeenIds.add(m.id);
+    });
+  }
+  stopMessagePolling();
+  _pollingInterval = setInterval(checkForNewMessages, 20000);
+}
+
+function stopMessagePolling(){
+  if(_pollingInterval){ clearInterval(_pollingInterval); _pollingInterval = null; }
+}
 
 async function doLogin(){
   const email = document.getElementById('l-email').value.trim();
@@ -1433,21 +1499,12 @@ async function renderAdminMessages(){
     if(!empGroups[otherId]) empGroups[otherId]={name:otherName,msgs:[]};
     empGroups[otherId].msgs.push(m);
   }
-  // Add any employee not yet messaged to allow starting new conversation
-  const allEmps = EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin);
-  for(const emp of allEmps){
-    if(!empGroups[emp.id]) empGroups[emp.id]={name:emp.name,msgs:[],noMessages:true};
-  }
-
-  // Mark all as read
   for(const m of msgs){
     if(m.toId==='louise'&&!(m.readBy||[]).includes('louise')){
       await markMessageRead(m.id,'louise');
     }
   }
-
   const empIds = Object.keys(empGroups).sort((a,b)=>{
-    // Sort: unread first, then by latest message
     const aUnread=empGroups[a].msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
     const bUnread=empGroups[b].msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
     if(aUnread!==bUnread) return bUnread-aUnread;
@@ -1455,50 +1512,70 @@ async function renderAdminMessages(){
     const bLatest=empGroups[b].msgs.length?new Date(empGroups[b].msgs[empGroups[b].msgs.length-1].createdAt):0;
     return bLatest-aLatest;
   });
-
-  return`<div class="card" style="margin-bottom:14px">
-    <div class="sec-title">Ny besked til medarbejder</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Vælg medarbejder</label>
-        <select id="admin-msg-to">${EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin).map(e=>`<option value="${e.id}" data-name="${e.name}">${e.name}</option>`).join('')}</select>
-      </div>
+  const showNewMsg = window._showNewMsgForm||false;
+  return`
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="font-size:15px;font-weight:600;color:#1a1a1a">Beskeder</div>
+    <button class="btn btn-primary" style="font-size:13px;padding:7px 16px" onclick="window._showNewMsgForm=!window._showNewMsgForm;render()">
+      ${showNewMsg?'✕ Luk':'✉️ Ny besked'}
+    </button>
+  </div>
+  ${showNewMsg?`<div class="card" style="margin-bottom:14px;border:2px solid #6c63d4">
+    <div class="sec-title">Ny besked</div>
+    <div class="form-group">
+      <label class="form-label">Vælg medarbejder</label>
+      <select id="admin-msg-to">${EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin).map(e=>`<option value="${e.id}" data-name="${e.name}">${e.name}</option>`).join('')}</select>
     </div>
     <div class="form-group">
-      <textarea id="admin-msg-text" placeholder="Skriv besked til medarbejderen..." style="width:100%;min-height:70px;resize:none;font-size:13px"></textarea>
+      <textarea id="admin-msg-text" placeholder="Skriv besked til medarbejderen..." style="width:100%;min-height:80px;resize:none;font-size:13px"></textarea>
     </div>
     <button class="btn btn-primary" onclick="sendAdminNewMessage()">Send besked</button>
-  </div>
-  `+empIds.map(empId=>{
+  </div>`:''}
+  ${empIds.length===0?`<div class="card"><div class="empty">Ingen beskeder endnu</div></div>`
+  :empIds.map(empId=>{
     const ci=empIndex(empId);
     const {bg,tc}=empColor(ci>=0?ci:0);
     const group=empGroups[empId];
     const unread=group.msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
-    return`<div class="card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-        <div class="av" style="background:${bg};color:${tc}">${EMPLOYEES.find(e=>e.id===empId)?.initials||'?'}</div>
-        <div style="font-size:15px;font-weight:600">${group.name}</div>
-        ${unread>0?`<span class="badge b-pending">${unread} ny${unread!==1?'e':''}</span>`:''}
+    const lastMsg=group.msgs[group.msgs.length-1];
+    const isOpen=window._openConvId===empId;
+    return`<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">
+      <div onclick="window._openConvId=window._openConvId==='${empId}'?null:'${empId}';render()"
+        style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;background:${isOpen?'#f5f3ff':'white'};transition:background 0.15s">
+        <div class="av" style="background:${bg};color:${tc};flex-shrink:0">${EMPLOYEES.find(e=>e.id===empId)?.initials||'?'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:14px;font-weight:600;color:#1a1a1a">${group.name}</span>
+            ${unread>0?`<span class="badge b-pending">${unread} ny${unread!==1?'e':''}</span>`:''}
+          </div>
+          <div style="font-size:12px;color:#aaa;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px">
+            ${lastMsg?(lastMsg.fromId==='louise'?'Dig: ':'')+lastMsg.text:''}
+          </div>
+        </div>
+        <div style="font-size:11px;color:#ccc;flex-shrink:0">${lastMsg?new Date(lastMsg.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short'}):''}</div>
+        <div style="font-size:12px;color:#aaa">${isOpen?'▲':'▼'}</div>
       </div>
-      <div style="max-height:300px;overflow-y:auto;margin-bottom:12px">
-        ${group.msgs.map(m=>{
-          const isMe=m.fromId==='louise';
-          const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-          return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:8px">
-            <div style="display:flex;align-items:flex-start;gap:6px">
-              <div style="max-width:80%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:8px 12px;font-size:13px">${m.text}</div>
-              <button onclick="deleteMessage('${m.id}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:2px 4px;flex-shrink:0;margin-top:2px" title="Slet besked">🗑</button>
-            </div>
-            <div style="font-size:11px;color:#aaa;margin-top:2px">${isMe?'Dig':m.fromName} · ${time}</div>
-          </div>`;
-        }).join('')}
-      </div>
-      <div style="display:flex;gap:8px">
-        <textarea id="admin-reply-${empId}" placeholder="Skriv svar..." style="flex:1;min-height:50px;resize:none;font-size:13px"></textarea>
-        <button class="btn btn-primary" style="align-self:flex-end" onclick="sendAdminReply('${empId}','${group.name}')">Send</button>
-      </div>
+      ${isOpen?`<div style="border-top:1px solid #f0f0eb;padding:14px 16px">
+        <div style="max-height:340px;overflow-y:auto;margin-bottom:12px">
+          ${group.msgs.map(m=>{
+            const isMe=m.fromId==='louise';
+            const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+            return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:10px">
+              <div style="display:flex;align-items:flex-start;gap:6px;${isMe?'flex-direction:row-reverse':''}">
+                <div style="max-width:75%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:9px 13px;font-size:13px;line-height:1.4">${m.text}</div>
+                <button onclick="deleteMessage('${m.id}')" style="background:none;border:none;cursor:pointer;color:#ddd;font-size:13px;padding:2px 4px;flex-shrink:0;margin-top:4px" title="Slet">🗑</button>
+              </div>
+              <div style="font-size:11px;color:#bbb;margin-top:3px">${isMe?'Dig':m.fromName} · ${time}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;gap:8px">
+          <textarea id="admin-reply-${empId}" placeholder="Skriv svar til ${group.name}..." style="flex:1;min-height:50px;resize:none;font-size:13px;border:1px solid #e0e0da;border-radius:8px;padding:8px 12px"></textarea>
+          <button class="btn btn-primary" style="align-self:flex-end" onclick="sendAdminReply('${empId}','${group.name}')">Send</button>
+        </div>
+      </div>`:''}
     </div>`;
-  }).join('');}
+  }).join('')}`;}
 
 async function deleteMessage(msgId){
   if(!confirm('Vil du slette denne besked?')) return;
@@ -1516,6 +1593,8 @@ async function sendAdminNewMessage(){
   if(!toId){toast('Vælg en medarbejder');return;}
   await sendMessage('louise','Louise',toId,toName,text);
   window._messages = await loadMessages('louise',true);
+  window._showNewMsgForm=false;
+  window._openConvId=toId;
   toast('Besked sendt ✓');
   setTimeout(()=>render(),300);}
 
