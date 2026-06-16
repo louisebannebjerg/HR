@@ -891,7 +891,7 @@ ${(()=>{const upcoming=getUpcomingEvents(180);return upcoming.length>0?`<div onc
       else if(actTab==='other') filtered=myReqs.filter(r=>r.type==='emp-other'||r.type==='other'||r.type==='course');
       else if(actTab==='overtime') filtered=myReqs.filter(r=>r.type==='overtime');
       else if(actTab==='flex') filtered=myReqs.filter(r=>r.type==='flex');
-      const sorted=[...filtered].sort((a,b)=>new Date(b.from)-new Date(a.from));
+      const sorted=[...filtered].sort((a,b)=>new Date(a.from)-new Date(b.from));
       if(sorted.length===0) return'<div style="text-align:center;padding:1.5rem;color:#aaa;font-size:13px">Ingen registreringer</div>';
       return sorted.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f5f5f0">
         <div>
