@@ -547,77 +547,11 @@ auth.onAuthStateChanged(async user => {
     window._messages = await loadMessages(currentUser.id, currentUser.isAdmin);
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
     render();
-    requestNotificationPermission();
-    startMessagePolling();
   } else {
     currentUser = null;
-    stopMessagePolling();
     renderLogin();
   }
 });
-
-// ============================================================
-// BROWSER NOTIFIKATIONER
-// ============================================================
-let _notifSeenIds = new Set();
-let _pollingInterval = null;
-
-function requestNotificationPermission(){
-  if(!('Notification' in window)) return;
-  if(Notification.permission === 'default') Notification.requestPermission();
-}
-
-function sendBrowserNotification(title, body){
-  if(!('Notification' in window)) return;
-  if(Notification.permission !== 'granted') return;
-  const n = new Notification(title, {
-    body,
-    icon: 'https://cdn.jsdelivr.net/npm/twemoji@14/assets/72x72/1f4ac.png',
-    tag: 'hr-besked',
-    renotify: true
-  });
-  n.onclick = function(){
-    window.focus();
-    tab = currentUser?.isAdmin ? 'adminmessages' : 'messages';
-    render();
-    n.close();
-  };
-}
-
-async function checkForNewMessages(){
-  if(!currentUser) return;
-  try {
-    const fresh = await loadMessages(currentUser.id, currentUser.isAdmin);
-    const myId = currentUser.id;
-    const newMsgs = fresh.filter(m => {
-      if(m.toId !== myId) return false;
-      if(_notifSeenIds.has(m.id)) return false;
-      return true;
-    });
-    newMsgs.forEach(m => {
-      _notifSeenIds.add(m.id);
-      if(!(m.readBy||[]).includes(myId)){
-        sendBrowserNotification('📩 Ny besked fra ' + (m.fromName||''), m.text.length > 80 ? m.text.slice(0,80)+'…' : m.text);
-      }
-    });
-    window._messages = fresh;
-  } catch(e){ console.warn('Polling fejl:', e); }
-}
-
-function startMessagePolling(){
-  const myId = currentUser?.id;
-  if(myId && window._messages){
-    window._messages.forEach(m => {
-      if(m.toId === myId || m.fromId === myId) _notifSeenIds.add(m.id);
-    });
-  }
-  stopMessagePolling();
-  _pollingInterval = setInterval(checkForNewMessages, 20000);
-}
-
-function stopMessagePolling(){
-  if(_pollingInterval){ clearInterval(_pollingInterval); _pollingInterval = null; }
-}
 
 async function doLogin(){
   const email = document.getElementById('l-email').value.trim();
@@ -891,7 +825,7 @@ ${(()=>{const upcoming=getUpcomingEvents(180);return upcoming.length>0?`<div onc
       else if(actTab==='other') filtered=myReqs.filter(r=>r.type==='emp-other'||r.type==='other'||r.type==='course');
       else if(actTab==='overtime') filtered=myReqs.filter(r=>r.type==='overtime');
       else if(actTab==='flex') filtered=myReqs.filter(r=>r.type==='flex');
-      const sorted=[...filtered].sort((a,b)=>new Date(a.from)-new Date(b.from));
+      const sorted=[...filtered].sort((a,b)=>new Date(b.from)-new Date(a.from));
       if(sorted.length===0) return'<div style="text-align:center;padding:1.5rem;color:#aaa;font-size:13px">Ingen registreringer</div>';
       return sorted.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f5f5f0">
         <div>
@@ -926,10 +860,7 @@ function renderRegTab(){
     </div>
     <div id="hours-field" style="display:none" class="form-group">
       <label class="form-label" id="hours-label">Timer</label>
-      <input type="number" id="rhours" min="0.25" max="24" step="0.25" placeholder="f.eks. 1,5" oninput="showOvertimePreview()">
-      <div style="font-size:11px;color:#aaa;margin-top:5px;background:#f9f9f7;border-radius:6px;padding:6px 10px;line-height:1.8">
-        ⏱ 15 min = <strong>0,25</strong> &nbsp;·&nbsp; 30 min = <strong>0,5</strong> &nbsp;·&nbsp; 45 min = <strong>0,75</strong> &nbsp;·&nbsp; 1 time = <strong>1</strong>
-      </div>
+      <input type="number" id="rhours" min="0.5" max="24" step="0.5" placeholder="f.eks. 4" oninput="showOvertimePreview()">
     </div>
     <div id="emp-other-field" style="display:none" class="form-group">
       <label class="form-label">Beskriv fraværet</label>
@@ -1073,38 +1004,104 @@ async function sendEmpMessage(){
   setTimeout(()=>render(),300);}
 
 function renderAktivitet(myReqs){
-  const actTab=window._actTab||'all';
-  const tabs=[
-    {key:'all',label:'Alle'},
-    {key:'vacation',label:'🏖 Ferie'},
-    {key:'fritvalg',label:'💰 Fritvalg'},
-    {key:'other',label:'📋 Andet fravær'},
-    {key:'overtime',label:'⏱ Overarbejde'},
-    {key:'flex',label:'😌 Afspadsering'},
-  ];
-  let filtered=myReqs;
-  if(actTab==='vacation') filtered=myReqs.filter(r=>r.type==='vacation'||r.type==='week6');
-  else if(actTab==='fritvalg') filtered=myReqs.filter(r=>r.type==='fritvalg');
-  else if(actTab==='other') filtered=myReqs.filter(r=>r.type==='emp-other'||r.type==='other'||r.type==='course');
-  else if(actTab==='overtime') filtered=myReqs.filter(r=>r.type==='overtime');
-  else if(actTab==='flex') filtered=myReqs.filter(r=>r.type==='flex');
-  const sorted=[...filtered].sort((a,b)=>new Date(a.from)-new Date(b.from));
+  const now = new Date();
+  const calOffset = window._calOffset || 0;
+  const viewDate = new Date(now.getFullYear(), now.getMonth() + calOffset, 1);
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const monthName = viewDate.toLocaleDateString('da-DK', {month:'long', year:'numeric'});
+  const firstDay = new Date(year, month, 1).getDay();
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  return`<div class="card">
-    <div class="sec-title">Aktivitetsoversigt</div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-      ${tabs.map(t=>`<button onclick="setActTab('${t.key}')" style="font-size:12px;padding:5px 13px;border-radius:20px;border:1px solid ${actTab===t.key?'#6c63d4':'#e0e0da'};background:${actTab===t.key?'#6c63d4':'white'};color:${actTab===t.key?'white':'#666'};cursor:pointer;font-weight:500">${t.label}</button>`).join('')}
-    </div>
-    ${sorted.length===0
-      ?'<div style="text-align:center;padding:2rem;color:#aaa;font-size:13px">Ingen registreringer</div>'
-      :sorted.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f5f5f0">
+  const typeColor = {
+    vacation: {bg:'#ede8fd', tc:'#4a3ab5', label:'Ferie'},
+    week6: {bg:'#d6f0e3', tc:'#1d9e75', label:'6. ferieuge'},
+    fritvalg: {bg:'#fef3e0', tc:'#9a5f0a', label:'Fritvalg'},
+    overtime: {bg:'#e8f0fd', tc:'#1a4fa8', label:'Overarb.'},
+    flex: {bg:'#e8f5e0', tc:'#2d7a1f', label:'Afspad.'},
+    sick: {bg:'#fde8e8', tc:'#a32020', label:'Sygedag'},
+    'emp-other': {bg:'#f0f0eb', tc:'#555', label:'Andet'},
+    other: {bg:'#f0f0eb', tc:'#555', label:'Andet'},
+    course: {bg:'#fdf0e8', tc:'#a85020', label:'Kursus'},
+  };
+
+  const dayMap = {};
+  for(const r of myReqs){
+    if(!r.from) continue;
+    const fp=r.from.split('-'); const tp=(r.to||r.from).split('-');
+    const from=new Date(fp[0],parseInt(fp[1])-1,parseInt(fp[2]));
+    const to=new Date(tp[0],parseInt(tp[1])-1,parseInt(tp[2]));
+    let cur=new Date(from);
+    while(cur<=to){
+      if(cur.getFullYear()===year&&cur.getMonth()===month){
+        const k=cur.getDate();
+        if(!dayMap[k])dayMap[k]=[];
+        dayMap[k].push(r);
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+  }
+
+  const dayNames=['Man','Tir','Ons','Tor','Fre','Lor','Son'];
+  const today=new Date();
+  let cells='';
+  let cnt=0;
+  for(let i=0;i<startOffset;i++){cells+=`<div></div>`;cnt++;}
+  for(let d=1;d<=daysInMonth;d++){
+    const regs=dayMap[d]||[];
+    const isToday=today.getDate()===d&&today.getMonth()===month&&today.getFullYear()===year;
+    const col=(startOffset+d-1)%7;
+    const isWeekend=col>=5;
+    const dots=regs.slice(0,3).map(r=>{const c=typeColor[r.type]||typeColor['emp-other'];return`<div style="width:6px;height:6px;border-radius:50%;background:${c.tc}"></div>`;}).join('');
+    cells+=`<div style="min-height:52px;border:1px solid #f0f0eb;border-radius:8px;padding:5px 6px;background:${isToday?'#6c63d4':isWeekend?'#f9f9f7':'white'};cursor:${regs.length>0?'pointer':'default'}"
+      ${regs.length>0?`onclick="window._calDay=${d};window._calMonth=${month};window._calYear=${year};render()"`:''}>
+      <div style="font-size:12px;font-weight:${isToday?700:500};color:${isToday?'white':'#1a1a1a'};margin-bottom:3px">${d}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px">${dots}</div>
+    </div>`;
+    cnt++;
+  }
+  const rem=(7-(cnt%7))%7;
+  for(let i=0;i<rem;i++)cells+=`<div></div>`;
+
+  const usedTypes=[...new Set(myReqs.map(r=>r.type))];
+  const legendHtml=usedTypes.map(t=>{const c=typeColor[t]||typeColor['emp-other'];return`<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555"><div style="width:10px;height:10px;border-radius:50%;background:${c.tc}"></div>${c.label}</div>`;}).join('');
+
+  const selDay=window._calDay;
+  const selMonth=window._calMonth;
+  const selYear=window._calYear;
+  let dayDetailHtml='';
+  if(selDay&&selMonth===month&&selYear===year&&dayMap[selDay]){
+    const regs=dayMap[selDay];
+    dayDetailHtml=`<div class="card" style="margin-bottom:14px;border:2px solid #6c63d4">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:600;color:#6c63d4">${selDay}. ${viewDate.toLocaleDateString('da-DK',{month:'long'})} ${selYear}</div>
+        <button onclick="window._calDay=null;render()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:16px">x</button>
+      </div>
+      ${regs.map(r=>{const c=typeColor[r.type]||typeColor['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:${c.bg};border-radius:8px;margin-bottom:6px">
         <div>
-          <div style="font-size:13px;font-weight:500;color:#1a1a1a">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
-          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.hours?'· '+r.hours+'t':r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
+          <div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}${r.customNote?' - '+r.customNote:''}</div>
+          <div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${r.hours?'- '+r.hours+'t':r.days?'- '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
         </div>
         <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
-      </div>`).join('')}
+      </div>`;}).join('')}
+    </div>`;
+  }
+
+  return`${dayDetailHtml}
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <button onclick="window._calOffset=(window._calOffset||0)-1;window._calDay=null;render()" style="background:#f0f0eb;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:16px">&#8592;</button>
+      <div style="font-size:15px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${monthName}</div>
+      <button onclick="window._calOffset=(window._calOffset||0)+1;window._calDay=null;render()" ${calOffset>=0?'disabled style="opacity:0.3;cursor:not-allowed;background:#f0f0eb;border:none;border-radius:8px;padding:7px 14px;font-size:16px"':'style="background:#f0f0eb;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:16px"'}>&#8594;</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">
+      ${dayNames.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:#aaa;padding:4px 0">${d}</div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div>
+    ${usedTypes.length>0?`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #f0f0eb">${legendHtml}</div>`:''}
   </div>`;}
+
 
 function renderSaldoTab(stats, myReqs){
   const vacPctCur=stats.vacUsedCur>0?Math.min(100,Math.round((stats.vacUsedCur/VAC_DAYS)*100)):0;
@@ -1181,7 +1178,7 @@ function renderSaldoTab(stats, myReqs){
   </div>`;}
 
 function renderHistTab(myReqs){
-  const sorted=[...myReqs].sort((a,b)=>new Date(a.from)-new Date(b.from));
+  const sorted=[...myReqs].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   if(!sorted.length)return'<div class="empty">Ingen anmodninger endnu</div>';
   const editId=window._editReqId;
   return`<div class="card">${sorted.map(r=>{
@@ -1502,12 +1499,21 @@ async function renderAdminMessages(){
     if(!empGroups[otherId]) empGroups[otherId]={name:otherName,msgs:[]};
     empGroups[otherId].msgs.push(m);
   }
+  // Add any employee not yet messaged to allow starting new conversation
+  const allEmps = EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin);
+  for(const emp of allEmps){
+    if(!empGroups[emp.id]) empGroups[emp.id]={name:emp.name,msgs:[],noMessages:true};
+  }
+
+  // Mark all as read
   for(const m of msgs){
     if(m.toId==='louise'&&!(m.readBy||[]).includes('louise')){
       await markMessageRead(m.id,'louise');
     }
   }
+
   const empIds = Object.keys(empGroups).sort((a,b)=>{
+    // Sort: unread first, then by latest message
     const aUnread=empGroups[a].msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
     const bUnread=empGroups[b].msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
     if(aUnread!==bUnread) return bUnread-aUnread;
@@ -1515,70 +1521,50 @@ async function renderAdminMessages(){
     const bLatest=empGroups[b].msgs.length?new Date(empGroups[b].msgs[empGroups[b].msgs.length-1].createdAt):0;
     return bLatest-aLatest;
   });
-  const showNewMsg = window._showNewMsgForm||false;
-  return`
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-    <div style="font-size:15px;font-weight:600;color:#1a1a1a">Beskeder</div>
-    <button class="btn btn-primary" style="font-size:13px;padding:7px 16px" onclick="window._showNewMsgForm=!window._showNewMsgForm;render()">
-      ${showNewMsg?'✕ Luk':'✉️ Ny besked'}
-    </button>
-  </div>
-  ${showNewMsg?`<div class="card" style="margin-bottom:14px;border:2px solid #6c63d4">
-    <div class="sec-title">Ny besked</div>
-    <div class="form-group">
-      <label class="form-label">Vælg medarbejder</label>
-      <select id="admin-msg-to">${EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin).map(e=>`<option value="${e.id}" data-name="${e.name}">${e.name}</option>`).join('')}</select>
+
+  return`<div class="card" style="margin-bottom:14px">
+    <div class="sec-title">Ny besked til medarbejder</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Vælg medarbejder</label>
+        <select id="admin-msg-to">${EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin).map(e=>`<option value="${e.id}" data-name="${e.name}">${e.name}</option>`).join('')}</select>
+      </div>
     </div>
     <div class="form-group">
-      <textarea id="admin-msg-text" placeholder="Skriv besked til medarbejderen..." style="width:100%;min-height:80px;resize:none;font-size:13px"></textarea>
+      <textarea id="admin-msg-text" placeholder="Skriv besked til medarbejderen..." style="width:100%;min-height:70px;resize:none;font-size:13px"></textarea>
     </div>
     <button class="btn btn-primary" onclick="sendAdminNewMessage()">Send besked</button>
-  </div>`:''}
-  ${empIds.length===0?`<div class="card"><div class="empty">Ingen beskeder endnu</div></div>`
-  :empIds.map(empId=>{
+  </div>
+  `+empIds.map(empId=>{
     const ci=empIndex(empId);
     const {bg,tc}=empColor(ci>=0?ci:0);
     const group=empGroups[empId];
     const unread=group.msgs.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length;
-    const lastMsg=group.msgs[group.msgs.length-1];
-    const isOpen=window._openConvId===empId;
-    return`<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">
-      <div onclick="window._openConvId=window._openConvId==='${empId}'?null:'${empId}';render()"
-        style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;background:${isOpen?'#f5f3ff':'white'};transition:background 0.15s">
-        <div class="av" style="background:${bg};color:${tc};flex-shrink:0">${EMPLOYEES.find(e=>e.id===empId)?.initials||'?'}</div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:14px;font-weight:600;color:#1a1a1a">${group.name}</span>
-            ${unread>0?`<span class="badge b-pending">${unread} ny${unread!==1?'e':''}</span>`:''}
-          </div>
-          <div style="font-size:12px;color:#aaa;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px">
-            ${lastMsg?(lastMsg.fromId==='louise'?'Dig: ':'')+lastMsg.text:''}
-          </div>
-        </div>
-        <div style="font-size:11px;color:#ccc;flex-shrink:0">${lastMsg?new Date(lastMsg.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short'}):''}</div>
-        <div style="font-size:12px;color:#aaa">${isOpen?'▲':'▼'}</div>
+    return`<div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div class="av" style="background:${bg};color:${tc}">${EMPLOYEES.find(e=>e.id===empId)?.initials||'?'}</div>
+        <div style="font-size:15px;font-weight:600">${group.name}</div>
+        ${unread>0?`<span class="badge b-pending">${unread} ny${unread!==1?'e':''}</span>`:''}
       </div>
-      ${isOpen?`<div style="border-top:1px solid #f0f0eb;padding:14px 16px">
-        <div style="max-height:340px;overflow-y:auto;margin-bottom:12px">
-          ${group.msgs.map(m=>{
-            const isMe=m.fromId==='louise';
-            const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-            return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:10px">
-              <div style="display:flex;align-items:flex-start;gap:6px;${isMe?'flex-direction:row-reverse':''}">
-                <div style="max-width:75%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:9px 13px;font-size:13px;line-height:1.4">${m.text}</div>
-                <button onclick="deleteMessage('${m.id}')" style="background:none;border:none;cursor:pointer;color:#ddd;font-size:13px;padding:2px 4px;flex-shrink:0;margin-top:4px" title="Slet">🗑</button>
-              </div>
-              <div style="font-size:11px;color:#bbb;margin-top:3px">${isMe?'Dig':m.fromName} · ${time}</div>
-            </div>`;
-          }).join('')}
-        </div>
-        <div style="display:flex;gap:8px">
-          <textarea id="admin-reply-${empId}" placeholder="Skriv svar til ${group.name}..." style="flex:1;min-height:50px;resize:none;font-size:13px;border:1px solid #e0e0da;border-radius:8px;padding:8px 12px"></textarea>
-          <button class="btn btn-primary" style="align-self:flex-end" onclick="sendAdminReply('${empId}','${group.name}')">Send</button>
-        </div>
-      </div>`:''}
+      <div style="max-height:300px;overflow-y:auto;margin-bottom:12px">
+        ${group.msgs.map(m=>{
+          const isMe=m.fromId==='louise';
+          const time=new Date(m.createdAt).toLocaleDateString('da-DK',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+          return`<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin-bottom:8px">
+            <div style="display:flex;align-items:flex-start;gap:6px">
+              <div style="max-width:80%;background:${isMe?'#6c63d4':'#f0f0eb'};color:${isMe?'white':'#1a1a1a'};border-radius:${isMe?'14px 14px 4px 14px':'14px 14px 14px 4px'};padding:8px 12px;font-size:13px">${m.text}</div>
+              <button onclick="deleteMessage('${m.id}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:2px 4px;flex-shrink:0;margin-top:2px" title="Slet besked">🗑</button>
+            </div>
+            <div style="font-size:11px;color:#aaa;margin-top:2px">${isMe?'Dig':m.fromName} · ${time}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:8px">
+        <textarea id="admin-reply-${empId}" placeholder="Skriv svar..." style="flex:1;min-height:50px;resize:none;font-size:13px"></textarea>
+        <button class="btn btn-primary" style="align-self:flex-end" onclick="sendAdminReply('${empId}','${group.name}')">Send</button>
+      </div>
     </div>`;
-  }).join('')}`;}
+  }).join('');}
 
 async function deleteMessage(msgId){
   if(!confirm('Vil du slette denne besked?')) return;
@@ -1596,8 +1582,6 @@ async function sendAdminNewMessage(){
   if(!toId){toast('Vælg en medarbejder');return;}
   await sendMessage('louise','Louise',toId,toName,text);
   window._messages = await loadMessages('louise',true);
-  window._showNewMsgForm=false;
-  window._openConvId=toId;
   toast('Besked sendt ✓');
   setTimeout(()=>render(),300);}
 
@@ -1737,11 +1721,10 @@ function renderAdminDash(){
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${todaySick.length}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">${todaySick.length>0?todaySick.map(r=>r.userName.split(' ')[0]).join(', '):'ingen syge'}</div>
     </div>
-    <div onclick="showMonthSickPopup()" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#f5b8b8'" onmouseout="this.style.borderColor='#e5e5e0'">
+    <div onclick="switchTab('sick')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#f5b8b8'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Sygedage denne måned</div>
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${monthSick.reduce((s,r)=>s+r.days,0)}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">på tværs af ${[...new Set(monthSick.map(r=>r.userId))].length} medarbejder${[...new Set(monthSick.map(r=>r.userId))].length!==1?'e':''}</div>
-      <div style="font-size:11px;color:#6c63d4;margin-top:4px;font-weight:500">Klik for detaljer →</div>
     </div>
     <div onclick="switchTab('employees')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#6c63d4'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Medarbejdere</div>
@@ -1943,10 +1926,7 @@ async function renderAdminEmployees(){
       </div>
       <div id="admin-hours-field" style="display:none" class="form-group">
         <label class="form-label">Timer</label>
-        <input type="number" id="admin-rhours" min="0.25" max="24" step="0.25" placeholder="f.eks. 1,5" oninput="checkAdminWeek6Budget(document.getElementById('admin-emp-id')?.value)">
-        <div style="font-size:11px;color:#aaa;margin-top:5px;background:#f9f9f7;border-radius:6px;padding:6px 10px;line-height:1.8">
-          ⏱ 15 min = <strong>0,25</strong> &nbsp;·&nbsp; 30 min = <strong>0,5</strong> &nbsp;·&nbsp; 45 min = <strong>0,75</strong> &nbsp;·&nbsp; 1 time = <strong>1</strong>
-        </div>
+        <input type="number" id="admin-rhours" min="0.5" max="24" step="0.5" placeholder="f.eks. 4" oninput="checkAdminWeek6Budget(document.getElementById('admin-emp-id')?.value)">
       </div>
       <div id="admin-other-note-field" style="display:none" class="form-group">
         <label class="form-label">Beskriv fraværet</label>
@@ -2931,91 +2911,6 @@ async function empDeleteReq(id){
 
 function openEmp(id){adminView='detail';adminEmpId=id;render()}
 function goBack(){adminView='list';adminEmpId=null;render()}
-
-// ============================================================
-// SYGEDAGE DENNE MÅNED – POPUP MED MÅNEDSVÆLGER
-// ============================================================
-function showMonthSickPopup(offsetMonths=0){
-  const now=new Date();
-  const targetYear=now.getFullYear();
-  const targetMonth=now.getMonth()+offsetMonths;
-  const target=new Date(targetYear, targetMonth, 1);
-  const y=target.getFullYear();
-  const m=String(target.getMonth()+1).padStart(2,'0');
-  const thisMonth=y+'-'+m;
-  const monthName=target.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
-  const monthStart=thisMonth+'-01';
-  const lastDay=new Date(y, target.getMonth()+1, 0).getDate();
-  const monthEnd=y+'-'+m+'-'+String(lastDay).padStart(2,'0');
-  const monthSick=allRequests.filter(r=>r.type==='sick'&&r.from>=monthStart&&r.from<=monthEnd);
-
-  const byEmp={};
-  for(const r of monthSick){
-    if(!byEmp[r.userId]) byEmp[r.userId]={name:r.userName,reqs:[]};
-    byEmp[r.userId].reqs.push(r);
-  }
-
-  const rows=Object.values(byEmp).map(e=>{
-    const own=e.reqs.filter(r=>r.sickType!=='barn').reduce((s,r)=>s+r.days,0);
-    const barn=e.reqs.filter(r=>r.sickType==='barn').reduce((s,r)=>s+r.days,0);
-    const empObj=EMPLOYEES.find(x=>e.reqs[0]?.userId===x.id);
-    const ci=empObj?empIndex(empObj.id):0;
-    const {bg,tc}=empColor(ci>=0?ci:0);
-    const initials=empObj?.initials||e.name.slice(0,2).toUpperCase();
-    return{name:e.name,own,barn,total:own+barn,reqs:e.reqs,bg,tc,initials};
-  }).sort((a,b)=>b.total-a.total);
-
-  const totalDays=rows.reduce((s,r)=>s+r.total,0);
-  const isCurrentMonth=offsetMonths===0;
-
-  const html=`
-  <div id="month-sick-overlay" onclick="if(event.target===this)closeMonthSickPopup()"
-    style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px">
-    <div style="background:white;border-radius:16px;padding:24px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-        <div>
-          <div style="font-size:16px;font-weight:700;color:#1a1a1a">🤒 Sygedage</div>
-          <div style="font-size:12px;color:#aaa;margin-top:2px">${totalDays} dag${totalDays!==1?'e':''} i alt</div>
-        </div>
-        <button onclick="closeMonthSickPopup()" style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:#666">✕ Luk</button>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;background:#f5f5f0;border-radius:10px;padding:8px 12px;margin-bottom:18px">
-        <button onclick="showMonthSickPopup(${offsetMonths-1})" style="background:white;border:1px solid #e0e0da;border-radius:7px;padding:5px 12px;cursor:pointer;font-size:14px;color:#555">←</button>
-        <span style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${monthName}</span>
-        <button onclick="showMonthSickPopup(${offsetMonths+1})" ${isCurrentMonth?'disabled style="opacity:0.3;cursor:not-allowed;':'style="'}background:white;border:1px solid #e0e0da;border-radius:7px;padding:5px 12px;cursor:pointer;font-size:14px;color:#555">→</button>
-      </div>
-      ${rows.length===0
-        ?`<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">Ingen sygedage registreret i ${monthName}</div>`
-        :rows.map(r=>`
-        <div style="padding:12px 0;border-bottom:1px solid #f0f0eb">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <div style="width:32px;height:32px;border-radius:50%;background:${r.bg};color:${r.tc};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${r.initials}</div>
-            <div style="flex:1">
-              <div style="font-size:14px;font-weight:600;color:#1a1a1a">${r.name}</div>
-              <div style="font-size:12px;color:#aaa">${r.total} dag${r.total!==1?'e':''} i alt${r.own>0?' · '+r.own+' egen':''}${r.barn>0?' · '+r.barn+' barn':''}</div>
-            </div>
-            <div style="background:#e8f0fd;color:#1a4fa8;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px">${r.total}d</div>
-          </div>
-          ${r.reqs.map(req=>`
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#f9f9f7;border-radius:7px;margin-bottom:4px;font-size:12px">
-              <span style="color:#555">${req.sickType==='barn'?'🧒 Barn syg':'🤒 Egen sygdom'}</span>
-              <span style="color:#888">${fmt(req.from)}${req.from!==req.to?' – '+fmt(req.to):''} · ${req.days} dag${req.days!==1?'e':''}</span>
-            </div>
-          `).join('')}
-        </div>`).join('')}
-      <button onclick="closeMonthSickPopup();switchTab('sick')" style="width:100%;margin-top:16px;background:#f0f0eb;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer;color:#555;font-weight:500">Gå til sygdomsoversigt →</button>
-    </div>
-  </div>`;
-
-  const existing=document.getElementById('month-sick-overlay');
-  if(existing)existing.remove();
-  document.body.insertAdjacentHTML('beforeend',html);
-}
-
-function closeMonthSickPopup(){
-  const el=document.getElementById('month-sick-overlay');
-  if(el)el.remove();
-}
 </script>
 </body>
 </html>
