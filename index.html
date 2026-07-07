@@ -1882,7 +1882,6 @@ async function renderAdminEmployees(){
       <textarea id="admin-note-text" placeholder="Skriv noter om denne medarbejder..." style="width:100%;min-height:100px;resize:vertical;font-size:13px" onchange="saveAdminNote('${emp.id}',this.value)">${window._adminNote||''}</textarea>
     </div>
     <div class="card">
-    <div class="card">
       <div class="sec-title">Registreringer – kalender</div>
       ${renderEmpCalendar(empReqs, adminEmpId)}
     </div>`;}
