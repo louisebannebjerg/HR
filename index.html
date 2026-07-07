@@ -1004,32 +1004,30 @@ async function sendEmpMessage(){
   setTimeout(()=>render(),300);}
 
 function renderAktivitet(myReqs){
-  const now = new Date();
-  const calOffset = window._calOffset || 0;
-  const viewDate = new Date(now.getFullYear(), now.getMonth() + calOffset, 1);
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-  const monthName = viewDate.toLocaleDateString('da-DK', {month:'long', year:'numeric'});
-  const firstDay = new Date(year, month, 1).getDay();
-  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const typeColor = {
-    vacation: {bg:'#ede8fd', tc:'#4a3ab5', label:'Ferie'},
-    week6: {bg:'#d6f0e3', tc:'#1d9e75', label:'6. ferieuge'},
-    fritvalg: {bg:'#fef3e0', tc:'#9a5f0a', label:'Fritvalg'},
-    overtime: {bg:'#e8f0fd', tc:'#1a4fa8', label:'Overarb.'},
-    flex: {bg:'#e8f5e0', tc:'#2d7a1f', label:'Afspad.'},
-    sick: {bg:'#fde8e8', tc:'#a32020', label:'Sygedag'},
-    'emp-other': {bg:'#f0f0eb', tc:'#555', label:'Andet'},
-    other: {bg:'#f0f0eb', tc:'#555', label:'Andet'},
-    course: {bg:'#fdf0e8', tc:'#a85020', label:'Kursus'},
+  const now=new Date();
+  const calOffset=window._calOffset||0;
+  const viewDate=new Date(now.getFullYear(),now.getMonth()+calOffset,1);
+  const year=viewDate.getFullYear();
+  const month=viewDate.getMonth();
+  const monthName=viewDate.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
+  const firstDay=new Date(year,month,1).getDay();
+  const startOffset=firstDay===0?6:firstDay-1;
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const typeColor={
+    vacation:{bg:'#ede8fd',tc:'#4a3ab5',label:'Ferie'},
+    week6:{bg:'#d6f0e3',tc:'#1d9e75',label:'6. ferieuge'},
+    fritvalg:{bg:'#fef3e0',tc:'#9a5f0a',label:'Fritvalg'},
+    overtime:{bg:'#e8f0fd',tc:'#1a4fa8',label:'Overarb.'},
+    flex:{bg:'#e8f5e0',tc:'#2d7a1f',label:'Afspad.'},
+    sick:{bg:'#fde8e8',tc:'#a32020',label:'Sygedag'},
+    'emp-other':{bg:'#f0f0eb',tc:'#555',label:'Andet'},
+    other:{bg:'#f0f0eb',tc:'#555',label:'Andet'},
+    course:{bg:'#fdf0e8',tc:'#a85020',label:'Kursus'},
   };
-
-  const dayMap = {};
+  const dayMap={};
   for(const r of myReqs){
-    if(!r.from) continue;
-    const fp=r.from.split('-'); const tp=(r.to||r.from).split('-');
+    if(!r.from)continue;
+    const fp=r.from.split('-');const tp=(r.to||r.from).split('-');
     const from=new Date(fp[0],parseInt(fp[1])-1,parseInt(fp[2]));
     const to=new Date(tp[0],parseInt(tp[1])-1,parseInt(tp[2]));
     let cur=new Date(from);
@@ -1042,69 +1040,55 @@ function renderAktivitet(myReqs){
       cur.setDate(cur.getDate()+1);
     }
   }
-
   const dayNames=['Man','Tir','Ons','Tor','Fre','Lor','Son'];
   const today=new Date();
-  let cells='';
-  let cnt=0;
+  let cells='';let cnt=0;
   for(let i=0;i<startOffset;i++){cells+=`<div></div>`;cnt++;}
   for(let d=1;d<=daysInMonth;d++){
     const regs=dayMap[d]||[];
     const isToday=today.getDate()===d&&today.getMonth()===month&&today.getFullYear()===year;
-    const col=(startOffset+d-1)%7;
-    const isWeekend=col>=5;
-    // Bestem baggrundsfarve ud fra registreringstype (prioritér ferie > syg > andet)
-    let cellBg = isToday?'#6c63d4':isWeekend?'#f5f5f0':'white';
-    let cellBorder = isToday?'#6c63d4':'#f0f0eb';
-    let dayColor = isToday?'white':'#1a1a1a';
-    if(!isToday && regs.length>0){
-      const topReg = regs.find(r=>r.type==='vacation')||regs.find(r=>r.type==='sick')||regs.find(r=>r.type==='week6')||regs[0];
-      const c = typeColor[topReg.type]||typeColor['emp-other'];
-      cellBg = c.bg;
-      cellBorder = c.tc;
-      dayColor = c.tc;
+    const isWeekend=((startOffset+d-1)%7)>=5;
+    let cellBg=isToday?'#6c63d4':isWeekend?'#f5f5f0':'white';
+    let cellBorder=isToday?'#6c63d4':'#f0f0eb';
+    let dayColor=isToday?'white':'#1a1a1a';
+    if(!isToday&&regs.length>0){
+      const topReg=regs.find(r=>r.type==='vacation')||regs.find(r=>r.type==='sick')||regs.find(r=>r.type==='week6')||regs[0];
+      const c=typeColor[topReg.type]||typeColor['emp-other'];
+      cellBg=c.bg;cellBorder=c.tc;dayColor=c.tc;
     }
-    const typeLabels = [...new Set(regs.map(r=>typeColor[r.type]?.label||''))].join(', ');
     cells+=`<div style="min-height:52px;border:1px solid ${cellBorder};border-radius:8px;padding:5px 6px;background:${cellBg};cursor:${regs.length>0?'pointer':'default'}"
-      ${regs.length>0?`onclick="window._calDay=${d};window._calMonth=${month};window._calYear=${year};render()" title="${typeLabels}"`:''}>
+      ${regs.length>0?`onclick="window._calDay=${d};window._calMonth=${month};window._calYear=${year};render()"`:''}>
       <div style="font-size:12px;font-weight:${regs.length>0||isToday?700:400};color:${dayColor};margin-bottom:2px">${d}</div>
-      ${regs.length>0&&!isToday?`<div style="font-size:9px;color:${dayColor};opacity:0.8;line-height:1.2;overflow:hidden">${[...new Set(regs.map(r=>typeColor[r.type]?.label||''))].slice(0,2).join(', ')}</div>`:''}
+      ${regs.length>0&&!isToday?`<div style="font-size:9px;color:${dayColor};opacity:0.8;line-height:1.2">${[...new Set(regs.map(r=>typeColor[r.type]?.label||''))].slice(0,2).join(', ')}</div>`:''}
     </div>`;
     cnt++;
   }
   const rem=(7-(cnt%7))%7;
   for(let i=0;i<rem;i++)cells+=`<div></div>`;
-
   const usedTypes=[...new Set(myReqs.map(r=>r.type))];
   const legendHtml=usedTypes.map(t=>{const c=typeColor[t]||typeColor['emp-other'];return`<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555"><div style="width:10px;height:10px;border-radius:50%;background:${c.tc}"></div>${c.label}</div>`;}).join('');
-
-  const selDay=window._calDay;
-  const selMonth=window._calMonth;
-  const selYear=window._calYear;
+  const selDay=window._calDay;const selMonth=window._calMonth;const selYear=window._calYear;
   let dayDetailHtml='';
   if(selDay&&selMonth===month&&selYear===year&&dayMap[selDay]){
     const regs=dayMap[selDay];
     dayDetailHtml=`<div class="card" style="margin-bottom:14px;border:2px solid #6c63d4">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:14px;font-weight:600;color:#6c63d4">${selDay}. ${viewDate.toLocaleDateString('da-DK',{month:'long'})} ${selYear}</div>
-        <button onclick="window._calDay=null;render()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:16px">x</button>
+        <button onclick="window._calDay=null;render()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:16px">&#x2715;</button>
       </div>
       ${regs.map(r=>{const c=typeColor[r.type]||typeColor['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:${c.bg};border-radius:8px;margin-bottom:6px">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}${r.customNote?' - '+r.customNote:''}</div>
-          <div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${r.hours?'- '+r.hours+'t':r.days?'- '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
-        </div>
+        <div><div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}${r.customNote?' - '+r.customNote:''}</div>
+        <div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${r.hours?'- '+r.hours+'t':r.days?'- '+r.days+' dag'+(r.days!==1?'e':''):''}</div></div>
         <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
       </div>`;}).join('')}
     </div>`;
   }
-
   return`${dayDetailHtml}
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <button onclick="window._calOffset=(window._calOffset||0)-1;window._calDay=null;render()" style="background:#f0f0eb;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:16px">&#8592;</button>
       <div style="font-size:15px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${monthName}</div>
-      <button onclick="window._calOffset=(window._calOffset||0)+1;window._calDay=null;render()" ${calOffset>=0?'disabled style="opacity:0.3;cursor:not-allowed;background:#f0f0eb;border:none;border-radius:8px;padding:7px 14px;font-size:16px"':'style="background:#f0f0eb;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:16px"'}>&#8594;</button>
+      <button onclick="window._calOffset=(window._calOffset||0)+1;window._calDay=null;render()" ${calOffset>=24?'disabled style="opacity:0.3;cursor:not-allowed;background:#f0f0eb;border:none;border-radius:8px;padding:7px 14px;font-size:16px"':'style="background:#f0f0eb;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:16px"'}>&#8594;</button>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">
       ${dayNames.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:#aaa;padding:4px 0">${d}</div>`).join('')}
@@ -1113,9 +1097,6 @@ function renderAktivitet(myReqs){
     ${usedTypes.length>0?`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #f0f0eb">${legendHtml}</div>`:''}
   </div>`;}
 
-
-function renderSaldoTab(stats, myReqs){
-  const vacPctCur=stats.vacUsedCur>0?Math.min(100,Math.round((stats.vacUsedCur/VAC_DAYS)*100)):0;
   const vacPctNext=stats.vacUsedNext>0?Math.min(100,Math.round((stats.vacUsedNext/VAC_DAYS)*100)):0;
   const w6PctCur=stats.w6BudgetCur>0?Math.min(100,Math.round((stats.w6UsedCur/stats.w6BudgetCur)*100)):0;
   const w6PctNext=stats.w6BudgetNext>0?Math.min(100,Math.round((stats.w6UsedNext/stats.w6BudgetNext)*100)):0;
@@ -1841,8 +1822,10 @@ function renderAdminRequests(){
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
           ${r.status==='pending'
             ?`<button class="btn-sm btn-approve" onclick="approveReq('${r.id}')">Godkend</button>
-               <button class="btn-sm btn-reject" onclick="rejectReq('${r.id}')">Afvis</button>`
-            :`<span class="badge b-${r.status}">${r.status==='approved'?'Godkendt':'Afvist'}</span>`}
+               <button class="btn-sm btn-reject" onclick="rejectReq('${r.id}')">Afvis</button>
+               <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>`
+            :`<span class="badge b-${r.status}">${r.status==='approved'?'Godkendt':'Afvist'}</span>
+               <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>`}
         </div>
       </div>`}).join('')}
   </div>`;}
@@ -1957,18 +1940,17 @@ async function renderAdminEmployees(){
     </div>`;}
 
 function renderEmpCalendar(empReqs, empId){
-  const now = new Date();
-  const key = 'adminCal_'+empId;
-  const calOffset = window[key+'_offset'] || 0;
-  const viewDate = new Date(now.getFullYear(), now.getMonth() + calOffset, 1);
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-  const monthName = viewDate.toLocaleDateString('da-DK', {month:'long', year:'numeric'});
-  const firstDay = new Date(year, month, 1).getDay();
-  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const typeColor = {
+  const now=new Date();
+  const key='adminCal_'+empId;
+  const calOffset=window[key+'_offset']||0;
+  const viewDate=new Date(now.getFullYear(),now.getMonth()+calOffset,1);
+  const year=viewDate.getFullYear();
+  const month=viewDate.getMonth();
+  const monthName=viewDate.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
+  const firstDay=new Date(year,month,1).getDay();
+  const startOffset=firstDay===0?6:firstDay-1;
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const typeColor={
     vacation:{bg:'#ede8fd',tc:'#4a3ab5',label:'Ferie'},
     week6:{bg:'#d6f0e3',tc:'#1d9e75',label:'6. ferieuge'},
     fritvalg:{bg:'#fef3e0',tc:'#9a5f0a',label:'Fritvalg'},
@@ -1979,11 +1961,10 @@ function renderEmpCalendar(empReqs, empId){
     other:{bg:'#f0f0eb',tc:'#555',label:'Andet'},
     course:{bg:'#fdf0e8',tc:'#a85020',label:'Kursus'},
   };
-
-  const dayMap = {};
+  const dayMap={};
   for(const r of empReqs){
-    if(!r.from) continue;
-    const fp=r.from.split('-'); const tp=(r.to||r.from).split('-');
+    if(!r.from)continue;
+    const fp=r.from.split('-');const tp=(r.to||r.from).split('-');
     const from=new Date(fp[0],parseInt(fp[1])-1,parseInt(fp[2]));
     const to=new Date(tp[0],parseInt(tp[1])-1,parseInt(tp[2]));
     let cur=new Date(from);
@@ -1996,11 +1977,9 @@ function renderEmpCalendar(empReqs, empId){
       cur.setDate(cur.getDate()+1);
     }
   }
-
   const dayNames=['Man','Tir','Ons','Tor','Fre','Lor','Son'];
   const today=new Date();
-  let cells='';
-  let cnt=0;
+  let cells='';let cnt=0;
   for(let i=0;i<startOffset;i++){cells+=`<div></div>`;cnt++;}
   for(let d=1;d<=daysInMonth;d++){
     const regs=dayMap[d]||[];
@@ -2012,7 +1991,7 @@ function renderEmpCalendar(empReqs, empId){
     if(!isToday&&regs.length>0){
       const topReg=regs.find(r=>r.type==='vacation')||regs.find(r=>r.type==='sick')||regs.find(r=>r.type==='week6')||regs[0];
       const c=typeColor[topReg.type]||typeColor['emp-other'];
-      cellBg=c.bg; cellBorder=c.tc; dayColor=c.tc;
+      cellBg=c.bg;cellBorder=c.tc;dayColor=c.tc;
     }
     cells+=`<div style="min-height:52px;border:1px solid ${cellBorder};border-radius:8px;padding:5px 6px;background:${cellBg};cursor:${regs.length>0?'pointer':'default'}"
       ${regs.length>0?`onclick="window['${key}_day']=${d};window['${key}_month']=${month};window['${key}_year']=${year};render()"`:''}>
@@ -2023,13 +2002,9 @@ function renderEmpCalendar(empReqs, empId){
   }
   const rem=(7-(cnt%7))%7;
   for(let i=0;i<rem;i++)cells+=`<div></div>`;
-
   const usedTypes=[...new Set(empReqs.map(r=>r.type))];
   const legendHtml=usedTypes.map(t=>{const c=typeColor[t]||typeColor['emp-other'];return`<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555"><div style="width:10px;height:10px;border-radius:50%;background:${c.tc}"></div>${c.label}</div>`;}).join('');
-
-  const selDay=window[key+'_day'];
-  const selMonth=window[key+'_month'];
-  const selYear=window[key+'_year'];
+  const selDay=window[key+'_day'];const selMonth=window[key+'_month'];const selYear=window[key+'_year'];
   let dayDetailHtml='';
   if(selDay&&selMonth===month&&selYear===year&&dayMap[selDay]){
     const regs=dayMap[selDay];
@@ -2039,20 +2014,20 @@ function renderEmpCalendar(empReqs, empId){
         <button onclick="window['${key}_day']=null;render()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:14px">&#x2715;</button>
       </div>
       ${regs.map(r=>{const c=typeColor[r.type]||typeColor['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}${r.customNote?' - '+r.customNote:''}</div>
-          <div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${r.hours?'- '+r.hours+'t':r.days?'- '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
+        <div><div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}${r.customNote?' - '+r.customNote:''}</div>
+        <div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${r.hours?'- '+r.hours+'t':r.days?'- '+r.days+' dag'+(r.days!==1?'e':''):''}</div></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+          <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
         </div>
-        <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
       </div>`;}).join('')}
     </div>`;
   }
-
   return`${dayDetailHtml}
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
     <button onclick="window['${key}_offset']=(window['${key}_offset']||0)-1;window['${key}_day']=null;render()" style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px">&#8592;</button>
     <div style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${monthName}</div>
-    <button onclick="window['${key}_offset']=(window['${key}_offset']||0)+1;window['${key}_day']=null;render()" ${calOffset>=0?'disabled style="opacity:0.3;cursor:not-allowed;background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;font-size:16px"':'style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px"'}>&#8594;</button>
+    <button onclick="window['${key}_offset']=(window['${key}_offset']||0)+1;window['${key}_day']=null;render()" ${calOffset>=24?'disabled style="opacity:0.3;cursor:not-allowed;background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;font-size:16px"':'style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px"'}>&#8594;</button>
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">
     ${dayNames.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:#aaa;padding:3px 0">${d}</div>`).join('')}
