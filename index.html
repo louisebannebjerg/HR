@@ -1007,8 +1007,7 @@ function renderAktivitet(myReqs){
   const now=new Date();
   const calOffset=window._calOffset||0;
   const viewDate=new Date(now.getFullYear(),now.getMonth()+calOffset,1);
-  const year=viewDate.getFullYear();
-  const month=viewDate.getMonth();
+  const year=viewDate.getFullYear();const month=viewDate.getMonth();
   const monthName=viewDate.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
   const firstDay=new Date(year,month,1).getDay();
   const startOffset=firstDay===0?6:firstDay-1;
@@ -1046,6 +1045,8 @@ function renderAktivitet(myReqs){
   ${ut.length>0?`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #f0f0eb">${leg}</div>`:''}
   </div>`;}
 
+function renderSaldoTab(stats, myReqs){
+  const vacPctCur=stats.vacUsedCur>0?Math.min(100,Math.round((stats.vacUsedCur/VAC_DAYS)*100)):0;
   const vacPctNext=stats.vacUsedNext>0?Math.min(100,Math.round((stats.vacUsedNext/VAC_DAYS)*100)):0;
   const w6PctCur=stats.w6BudgetCur>0?Math.min(100,Math.round((stats.w6UsedCur/stats.w6BudgetCur)*100)):0;
   const w6PctNext=stats.w6BudgetNext>0?Math.min(100,Math.round((stats.w6UsedNext/stats.w6BudgetNext)*100)):0;
@@ -1882,6 +1883,7 @@ async function renderAdminEmployees(){
       <textarea id="admin-note-text" placeholder="Skriv noter om denne medarbejder..." style="width:100%;min-height:100px;resize:vertical;font-size:13px" onchange="saveAdminNote('${emp.id}',this.value)">${window._adminNote||''}</textarea>
     </div>
     <div class="card">
+    <div class="card">
       <div class="sec-title">Registreringer – kalender</div>
       ${renderEmpCalendar(empReqs, adminEmpId)}
     </div>`;}
@@ -1926,7 +1928,6 @@ function renderEmpCalendar(empReqs,empId){
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${cells}</div>
   ${ut.length>0?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #f0f0eb">${leg}</div>`:''}`;
 }
-
 
   const allEmps=EMPLOYEES.filter(e=>!e.isAdmin);
   return`<div class="card">
