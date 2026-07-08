@@ -1926,8 +1926,31 @@ function renderEmpCalendar(empReqs,empId){
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">${dn.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:#aaa;padding:3px 0">${d}</div>`).join('')}</div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${cells}</div>
-  ${ut.length>0?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #f0f0eb">${leg}</div>`:''}`;
-}
+  ${ut.length>0?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #f0f0eb">${leg}</div>`:''}
+  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0eb">
+    <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:10px;text-transform:capitalize">Registreringer i ${mn}</div>
+    ${Object.keys(dm).length===0
+      ?`<div style="font-size:12px;color:#aaa;text-align:center;padding:10px 0">Ingen registreringer denne måned</div>`
+      :Object.keys(dm).sort((a,b)=>a-b).map(d=>{
+        const regs=dm[d];
+        return regs.map(r=>{
+          const c=TC[r.type]||TC['emp-other'];
+          return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:12px;font-weight:700;color:${c.tc};min-width:28px">${d}.</div>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div>
+                <div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}${r.hours?'· '+r.hours+'t':''}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+              <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
+            </div>
+          </div>`;
+        }).join('');
+      }).join('')}
+  </div>`;
 
   const allEmps=EMPLOYEES.filter(e=>!e.isAdmin);
   return`<div class="card">
