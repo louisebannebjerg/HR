@@ -1875,48 +1875,58 @@ async function renderAdminEmployees(){
       <textarea id="admin-note-text" placeholder="Skriv noter om denne medarbejder..." style="width:100%;min-height:100px;resize:vertical;font-size:13px" onchange="saveAdminNote('${emp.id}',this.value)">${window._adminNote||''}</textarea>
     </div>
     <div class="card">
-      <div class="sec-title">Saldo-justering</div>
-      <div style="font-size:12px;color:#888;margin-bottom:14px">Brug dette hvis en medarbejder er gået i minus og har fået det udbetalt via løn — sæt saldoen til 0 eller et bestemt tal.</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div style="background:#f5f5f0;border-radius:10px;padding:12px">
-          <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:8px">6. ferieuge-saldo</div>
-          <div style="font-size:11px;color:#888;margin-bottom:8px">Nuværende: <strong>${stats.w6LeftCur}t</strong></div>
-          <div style="display:flex;gap:6px;margin-bottom:6px">
-            <input type="number" id="adj-w6-val" step="0.25" placeholder="Ny saldo (timer)" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid #e0e0da;border-radius:7px">
-          </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-primary" style="flex:1;font-size:12px;padding:7px" onclick="adjustW6Saldo('${emp.id}',${stats.w6BudgetCur},${stats.w6UsedCur})">Sæt til tal</button>
-            <button class="btn" style="flex:1;font-size:12px;padding:7px;background:#fde8e8;color:#a32020;border:none" onclick="resetW6Saldo('${emp.id}',${stats.w6BudgetCur},${stats.w6UsedCur})">Nulstil til 0</button>
-          </div>
-        </div>
-        ${stats.overtimeBank!==null?`<div style="background:#f5f5f0;border-radius:10px;padding:12px">
-          <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:8px">Overarbejde-saldo</div>
-          <div style="font-size:11px;color:#888;margin-bottom:8px">Nuværende: <strong>${stats.flexBank}t</strong></div>
-          <div style="display:flex;gap:6px;margin-bottom:6px">
-            <input type="number" id="adj-ot-val" step="0.25" placeholder="Ny saldo (timer)" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid #e0e0da;border-radius:7px">
-          </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-primary" style="flex:1;font-size:12px;padding:7px" onclick="adjustOTSaldo('${emp.id}',${stats.overtimeBank},${stats.flexHours})">Sæt til tal</button>
-            <button class="btn" style="flex:1;font-size:12px;padding:7px;background:#fde8e8;color:#a32020;border:none" onclick="resetOTSaldo('${emp.id}',${stats.overtimeBank},${stats.flexHours})">Nulstil til 0</button>
-          </div>
-        </div>`:'<div></div>'}
-      </div>
-    </div>
-    <div class="card">
-      <div class="sec-title">Alle registreringer</div>
-      ${empReqs.length===0?'<div class="empty">Ingen registreringer</div>':empReqs.map(r=>`<div class="req-item">
-        <div>
-          <div class="req-type">${typeLabel(r.type)}</div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
-          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
-          ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
-        </div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
-          <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
-        </div>
-      </div>`).join('')}
-    </div>`;}
+      <div class="sec-title">Registreringer – kalender</div>
+      ${renderEmpCalendar(empReqs, adminEmpId)}
+    </div>`;
+}
+
+function renderEmpCalendar(empReqs,empId){
+  const now=new Date();const key='ac_'+empId;
+  const co=window[key+'_o']||0;
+  const vd=new Date(now.getFullYear(),now.getMonth()+co,1);
+  const year=vd.getFullYear();const month=vd.getMonth();
+  const mn=vd.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
+  const fd=new Date(year,month,1).getDay();const so=fd===0?6:fd-1;
+  const dim=new Date(year,month+1,0).getDate();
+  const TC={vacation:{bg:'#ede8fd',tc:'#4a3ab5',label:'Ferie'},week6:{bg:'#d6f0e3',tc:'#1d9e75',label:'6. ferieuge'},fritvalg:{bg:'#fef3e0',tc:'#9a5f0a',label:'Fritvalg'},overtime:{bg:'#e8f0fd',tc:'#1a4fa8',label:'Overarb.'},flex:{bg:'#e8f5e0',tc:'#2d7a1f',label:'Afspad.'},sick:{bg:'#fde8e8',tc:'#a32020',label:'Sygedag'},'emp-other':{bg:'#f0f0eb',tc:'#555',label:'Andet'},other:{bg:'#f0f0eb',tc:'#555',label:'Andet'},course:{bg:'#fdf0e8',tc:'#a85020',label:'Kursus'}};
+  const dm={};
+  for(const r of empReqs){if(!r.from)continue;const fp=r.from.split('-');const tp=(r.to||r.from).split('-');const from=new Date(fp[0],parseInt(fp[1])-1,parseInt(fp[2]));const to=new Date(tp[0],parseInt(tp[1])-1,parseInt(tp[2]));let cur=new Date(from);while(cur<=to){if(cur.getFullYear()===year&&cur.getMonth()===month){const k=cur.getDate();if(!dm[k])dm[k]=[];dm[k].push(r);}cur.setDate(cur.getDate()+1);}}
+  const dn=['Man','Tir','Ons','Tor','Fre','Lor','Son'];
+  const today=new Date();let cells='';let cnt=0;
+  for(let i=0;i<so;i++){cells+=`<div></div>`;cnt++;}
+  for(let d=1;d<=dim;d++){
+    const regs=dm[d]||[];
+    const isToday=today.getDate()===d&&today.getMonth()===month&&today.getFullYear()===year;
+    const isWe=((so+d-1)%7)>=5;
+    let bg=isToday?'#6c63d4':isWe?'#f5f5f0':'white';let bc=isToday?'#6c63d4':'#f0f0eb';let dc=isToday?'white':'#1a1a1a';
+    if(!isToday&&regs.length>0){const t=regs.find(r=>r.type==='vacation')||regs.find(r=>r.type==='sick')||regs[0];const c=TC[t.type]||TC['emp-other'];bg=c.bg;bc=c.tc;dc=c.tc;}
+    cells+=`<div style="min-height:52px;border:1px solid ${bc};border-radius:8px;padding:5px 6px;background:${bg};cursor:${regs.length>0?'pointer':'default'}" ${regs.length>0?`onclick="window['${key}_d']=${d};window['${key}_m']=${month};window['${key}_y']=${year};render()"`:''}>
+      <div style="font-size:12px;font-weight:${regs.length>0||isToday?700:400};color:${dc};margin-bottom:2px">${d}</div>
+      ${regs.length>0&&!isToday?`<div style="font-size:9px;color:${dc};opacity:0.8;line-height:1.2">${[...new Set(regs.map(r=>TC[r.type]?.label||''))].slice(0,2).join(', ')}</div>`:''}
+    </div>`;cnt++;
+  }
+  const rem=(7-(cnt%7))%7;for(let i=0;i<rem;i++)cells+=`<div></div>`;
+  const ut=[...new Set(empReqs.map(r=>r.type))];
+  const leg=ut.map(t=>{const c=TC[t]||TC['emp-other'];return`<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555"><div style="width:10px;height:10px;border-radius:50%;background:${c.tc}"></div>${c.label}</div>`;}).join('');
+  const sd=window[key+'_d'];const sm=window[key+'_m'];const sy=window[key+'_y'];
+  let dd='';
+  if(sd&&sm===month&&sy===year&&dm[sd]){const regs=dm[sd];dd=`<div style="margin-bottom:12px;padding:12px;background:#f5f3ff;border-radius:10px;border:1px solid #6c63d4"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div style="font-size:13px;font-weight:600;color:#6c63d4">${sd}. ${vd.toLocaleDateString('da-DK',{month:'long'})} ${sy}</div><button onclick="window['${key}_d']=null;render()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:14px">&#x2715;</button></div>${regs.map(r=>{const c=TC[r.type]||TC['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px"><div><div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div><div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${r.days?'- '+r.days+' dag'+(r.days!==1?'e':''):''}</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span><button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button></div></div>`;}).join('')}</div>`;}
+  return`${dd}<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <button onclick="window['${key}_o']=(window['${key}_o']||0)-1;window['${key}_d']=null;render()" style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px">&#8592;</button>
+    <div style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${mn}</div>
+    <button onclick="window['${key}_o']=(window['${key}_o']||0)+1;window['${key}_d']=null;render()" ${co>=24?'disabled style="opacity:0.3;cursor:not-allowed;background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;font-size:16px"':'style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px"'}>&#8594;</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">${dn.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:#aaa;padding:3px 0">${d}</div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${cells}</div>
+  ${ut.length>0?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #f0f0eb">${leg}</div>`:''}
+  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0eb">
+    <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:10px;text-transform:capitalize">Registreringer i ${mn}</div>
+    ${Object.keys(dm).length===0
+      ?`<div style="font-size:12px;color:#aaa;text-align:center;padding:10px 0">Ingen registreringer denne måned</div>`
+      :Object.keys(dm).sort((a,b)=>a-b).map(d=>dm[d].map(r=>{const c=TC[r.type]||TC['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:12px;font-weight:700;color:${c.tc};min-width:28px">${d}.</div><div><div style="font-size:12px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div><div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}${r.hours?'· '+r.hours+'t':''}</div></div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span><button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button></div></div>`;}).join('')).join('')}
+  </div>`;}
+
+
 
   const allEmps=EMPLOYEES.filter(e=>!e.isAdmin);
   return`<div class="card">
@@ -2873,59 +2883,6 @@ async function empDeleteReq(id){
 
 function openEmp(id){adminView='detail';adminEmpId=id;render()}
 function goBack(){adminView='list';adminEmpId=null;render()}
-
-// ============================================================
-// SALDO-JUSTERINGER
-// ============================================================
-async function adjustW6Saldo(empId, budget, used){
-  const val=parseFloat(document.getElementById('adj-w6-val')?.value);
-  if(isNaN(val)){toast('Indtast en værdi');return;}
-  // Ny saldo = val → vi tilføjer en korrektionspost der justerer det brugte
-  // brugt_ny = budget - val → korrektions-timer = brugt_ny - used
-  const newUsed=Math.round((budget-val)*100)/100;
-  const adjHours=Math.round((newUsed-used)*100)/100;
-  await addSaldoAdjReq(empId,'week6',adjHours,`Saldo-justering: sat til ${val}t`);
-  toast(`6. ferieuge-saldo sat til ${val}t ✓`);}
-
-async function resetW6Saldo(empId, budget, used){
-  if(!confirm(`Nulstil 6. ferieuge-saldo til 0? Dette tilføjer en korrektionspost.`))return;
-  const adjHours=Math.round((budget-used)*(-1)*(-1)*100)/100;
-  // Sæt saldo til 0: brugt skal = budget → adj = budget - used
-  const adj=Math.round((budget-used)*100)/100;
-  await addSaldoAdjReq(empId,'week6',adj,'Nulstilling: saldo sat til 0');
-  toast('6. ferieuge-saldo nulstillet til 0 ✓');}
-
-async function adjustOTSaldo(empId, otBank, flexHours){
-  const val=parseFloat(document.getElementById('adj-ot-val')?.value);
-  if(isNaN(val)){toast('Indtast en værdi');return;}
-  // flexBank = otBank - flexHours → ny flexBank = val → ny flexHours = otBank - val
-  const newFlex=Math.round((otBank-val)*100)/100;
-  const adjHours=Math.round((newFlex-flexHours)*100)/100;
-  await addSaldoAdjReq(empId,'flex',adjHours,`Saldo-justering: sat til ${val}t`);
-  toast(`Overarbejde-saldo sat til ${val}t ✓`);}
-
-async function resetOTSaldo(empId, otBank, flexHours){
-  if(!confirm(`Nulstil overarbejde-saldo til 0? Dette tilføjer en korrektionspost.`))return;
-  // flexBank = 0 → flexHours skal = otBank
-  const adjHours=Math.round((otBank-flexHours)*100)/100;
-  await addSaldoAdjReq(empId,'flex',adjHours,'Nulstilling: saldo sat til 0');
-  toast('Overarbejde-saldo nulstillet til 0 ✓');}
-
-async function addSaldoAdjReq(empId, type, hours, note){
-  const emp=EMPLOYEES.find(e=>e.id===empId);
-  const today=new Date().toISOString().slice(0,10);
-  const req={
-    userId:empId, userName:emp?.name||empId,
-    type, hours, days:0,
-    from:today, to:today,
-    status:'approved',
-    note, isAdjustment:true,
-    createdAt:new Date().toISOString()
-  };
-  const ref=await db.collection('requests').add(req);
-  allRequests.push({id:ref.id,...req});
-  await loadAllRequests();
-  render();}
 </script>
 </body>
 </html>
