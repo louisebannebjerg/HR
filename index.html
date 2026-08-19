@@ -1891,13 +1891,29 @@ function renderEmpCalendar(empReqs,empId){
   const TC={vacation:{bg:'#ede8fd',tc:'#4a3ab5',label:'Ferie'},week6:{bg:'#d6f0e3',tc:'#1d9e75',label:'6. ferieuge'},fritvalg:{bg:'#fef3e0',tc:'#9a5f0a',label:'Fritvalg'},overtime:{bg:'#e8f0fd',tc:'#1a4fa8',label:'Overarb.'},flex:{bg:'#e8f5e0',tc:'#2d7a1f',label:'Afspad.'},sick:{bg:'#fde8e8',tc:'#a32020',label:'Sygedag'},'emp-other':{bg:'#f0f0eb',tc:'#555',label:'Andet'},other:{bg:'#f0f0eb',tc:'#555',label:'Andet'},course:{bg:'#fdf0e8',tc:'#a85020',label:'Kursus'}};
   const dm={};
   for(const r of empReqs){if(!r.from)continue;const fp=r.from.split('-');const tp=(r.to||r.from).split('-');const from=new Date(fp[0],parseInt(fp[1])-1,parseInt(fp[2]));const to=new Date(tp[0],parseInt(tp[1])-1,parseInt(tp[2]));let cur=new Date(from);while(cur<=to){if(cur.getFullYear()===year&&cur.getMonth()===month){const k=cur.getDate();if(!dm[k])dm[k]=[];dm[k].push(r);}cur.setDate(cur.getDate()+1);}}
-  const dn=['Man','Tir','Ons','Tor','Fre','Lor','Son'];
+  const dn=['','Man','Tir','Ons','Tor','Fre','Lor','Son'];
   const today=new Date();let cells='';let cnt=0;
-  for(let i=0;i<so;i++){cells+=`<div></div>`;cnt++;}
+  // Hjælpefunktion til ISO ugenummer
+  function getISOWeek(date){const d=new Date(date);d.setHours(0,0,0,0);d.setDate(d.getDate()+4-(d.getDay()||7));const y=new Date(d.getFullYear(),0,1);return Math.ceil(((d-y)/86400000+1)/7);}
+  // Tomme celler før første dag + ugenummer for første uge
+  for(let i=0;i<so;i++){
+    if(i===0){const firstDate=new Date(year,month,1);cells+=`<div style="display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#aaa;background:#f9f9f7;border-radius:6px;padding:2px 0">U${getISOWeek(firstDate)}</div>`;}
+    else cells+=`<div></div>`;cnt++;
+  }
   for(let d=1;d<=dim;d++){
     const regs=dm[d]||[];
+    const thisDate=new Date(year,month,d);
+    const dayOfWeek=(so+d-1)%7; // 0=man, 6=son
+    // Indsæt ugenummer i starten af hver ny uge (mandag = dayOfWeek 0), men ikke første uge (allerede tilføjet)
+    if(dayOfWeek===0&&cnt>0&&so>0){
+      cells+=`<div style="display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#aaa;background:#f9f9f7;border-radius:6px;padding:2px 0">U${getISOWeek(thisDate)}</div>`;
+      cnt++;
+    } else if(dayOfWeek===0&&so===0&&d>1){
+      cells+=`<div style="display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#aaa;background:#f9f9f7;border-radius:6px;padding:2px 0">U${getISOWeek(thisDate)}</div>`;
+      cnt++;
+    }
     const isToday=today.getDate()===d&&today.getMonth()===month&&today.getFullYear()===year;
-    const isWe=((so+d-1)%7)>=5;
+    const isWe=dayOfWeek>=5;
     let bg=isToday?'#6c63d4':isWe?'#f5f5f0':'white';let bc=isToday?'#6c63d4':'#f0f0eb';let dc=isToday?'white':'#1a1a1a';
     if(!isToday&&regs.length>0){const t=regs.find(r=>r.type==='vacation')||regs.find(r=>r.type==='sick')||regs[0];const c=TC[t.type]||TC['emp-other'];bg=c.bg;bc=c.tc;dc=c.tc;}
     cells+=`<div style="min-height:52px;border:1px solid ${bc};border-radius:8px;padding:5px 6px;background:${bg};cursor:${regs.length>0?'pointer':'default'}" ${regs.length>0?`onclick="window['${key}_d']=${d};window['${key}_m']=${month};window['${key}_y']=${year};render()"`:''}>
@@ -1916,8 +1932,8 @@ function renderEmpCalendar(empReqs,empId){
     <div style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${mn}</div>
     <button onclick="window['${key}_o']=(window['${key}_o']||0)+1;window['${key}_d']=null;render()" ${co>=24?'disabled style="opacity:0.3;cursor:not-allowed;background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;font-size:16px"':'style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px"'}>&#8594;</button>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">${dn.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:#aaa;padding:3px 0">${d}</div>`).join('')}</div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${cells}</div>
+  <div style="display:grid;grid-template-columns:32px repeat(7,1fr);gap:3px;margin-bottom:6px">${dn.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:#aaa;padding:3px 0">${d}</div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:32px repeat(7,1fr);gap:3px">${cells}</div>
   ${ut.length>0?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #f0f0eb">${leg}</div>`:''}
   <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0eb">
     <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:10px;text-transform:capitalize">Registreringer i ${mn}</div>
