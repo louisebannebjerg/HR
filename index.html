@@ -249,6 +249,8 @@ function toast(msg, dur=2500){
   setTimeout(()=>t.classList.remove('show'),dur);
 }
 function calcDays(a,b){if(!a||!b)return 0;return Math.max(0,Math.round((new Date(b)-new Date(a))/86400000)+1)}
+// Vis kun timer hvis der er timer, ellers dage
+function reqDur(r){if(r.hours)return r.hours+'t';if(r.days)return r.days+' dag'+(r.days!==1?'e':'');return'';}
 function fmt(d){
   if(!d)return'';
   // Ensure ISO format YYYY-MM-DD is parsed correctly
@@ -944,7 +946,7 @@ ${(()=>{const upcoming=getUpcomingEvents(180);return upcoming.length>0?`<div onc
       return sorted.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f5f5f0">
         <div>
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
-          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.hours?'· '+r.hours+'t':r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
+          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${'· '+reqDur(r)}</div>
         </div>
         <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
       </div>`).join('');
@@ -1145,7 +1147,7 @@ function renderAktivitet(myReqs){
       :sorted.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f5f5f0">
         <div>
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
-          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.hours?'· '+r.hours+'t':r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
+          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${'· '+reqDur(r)}</div>
         </div>
         <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
       </div>`).join('')}
@@ -1235,8 +1237,7 @@ function renderHistTab(myReqs){
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
           <div class="req-type">${typeLabel(r.type)}</div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.days?' · '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
-          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} '· '+reqDur(r)}</div>
           ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
@@ -1485,8 +1486,7 @@ function renderMyProfile(){
     ${sorted.map(r=>`<div class="req-item">
       <div>
         <div class="req-type">${typeLabel(r.type==='mysick'?'sick':r.type)}</div>
-        <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
-        ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
+        <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · \${reqDur(r)}</div>
         ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
         ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
       </div>
@@ -1876,8 +1876,7 @@ function renderAdminRequests(){
             <span style="font-size:13px;font-weight:600">${r.userName}</span>
             <span class="badge b-admin" style="font-size:10px">${typeLabel(r.type)}</span>
           </div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
-          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · \${reqDur(r)}</div>
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
@@ -2062,7 +2061,7 @@ function renderEmpCalendar(empReqs,empId){
   const leg=ut.map(t=>{const c=TC[t]||TC['emp-other'];return`<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555"><div style="width:10px;height:10px;border-radius:50%;background:${c.tc}"></div>${c.label}</div>`;}).join('');
   const sd=window[key+'_d'];const sm=window[key+'_m'];const sy=window[key+'_y'];
   let dd='';
-  if(sd&&sm===month&&sy===year&&dm[sd]){const regs=dm[sd];dd=`<div style="margin-bottom:12px;padding:12px;background:#f5f3ff;border-radius:10px;border:1px solid #6c63d4"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div style="font-size:13px;font-weight:600;color:#6c63d4">${sd}. ${vd.toLocaleDateString('da-DK',{month:'long'})} ${sy}</div><button onclick="window['${key}_d']=null;render()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:14px">&#x2715;</button></div>${regs.map(r=>{const c=TC[r.type]||TC['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px"><div><div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div><div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${r.days?'- '+r.days+' dag'+(r.days!==1?'e':''):''}</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span><button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button></div></div>`;}).join('')}</div>`;}
+  if(sd&&sm===month&&sy===year&&dm[sd]){const regs=dm[sd];dd=`<div style="margin-bottom:12px;padding:12px;background:#f5f3ff;border-radius:10px;border:1px solid #6c63d4"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div style="font-size:13px;font-weight:600;color:#6c63d4">${sd}. ${vd.toLocaleDateString('da-DK',{month:'long'})} ${sy}</div><button onclick="window['${key}_d']=null;render()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:14px">&#x2715;</button></div>${regs.map(r=>{const c=TC[r.type]||TC['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px"><div><div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div><div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${reqDur(r)?'- '+reqDur(r):''}</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span><button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button></div></div>`;}).join('')}</div>`;}
   return`${dd}<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
     <button onclick="window['${key}_o']=(window['${key}_o']||0)-1;window['${key}_d']=null;render()" style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px">&#8592;</button>
     <div style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${mn}</div>
@@ -2075,7 +2074,7 @@ function renderEmpCalendar(empReqs,empId){
     <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:10px;text-transform:capitalize">Registreringer i ${mn}</div>
     ${Object.keys(dm).length===0
       ?`<div style="font-size:12px;color:#aaa;text-align:center;padding:10px 0">Ingen registreringer denne måned</div>`
-      :Object.keys(dm).sort((a,b)=>a-b).map(d=>dm[d].map(r=>{const c=TC[r.type]||TC['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:12px;font-weight:700;color:${c.tc};min-width:28px">${d}.</div><div><div style="font-size:12px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div><div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}${r.hours?'· '+r.hours+'t':''}</div></div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span><button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button></div></div>`;}).join('')).join('')}
+      :Object.keys(dm).sort((a,b)=>a-b).map(d=>dm[d].map(r=>{const c=TC[r.type]||TC['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:12px;font-weight:700;color:${c.tc};min-width:28px">${d}.</div><div><div style="font-size:12px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div><div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${'· '+reqDur(r)}</div></div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span><button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button></div></div>`;}).join('')).join('')}
   </div>`;}
 
 
@@ -2235,7 +2234,7 @@ function renderAdminSick(){
         ${selected.reqs.map(r=>`<div class="req-item">
           <div>
             <div style="font-size:13px;font-weight:500;color:#1a1a1a">${r.sickType==='barn'?'🧒 Barn syg':'🤒 Egen sygdom'}</div>
-            <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
+            <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${reqDur(r)}</div>
             ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
           </div>
           <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
@@ -2307,7 +2306,7 @@ function renderAdminOtherAbsence(){
             <div class="av" style="width:24px;height:24px;background:${bg};color:${tc};font-size:10px">${emp?.initials||'?'}</div>
             <span style="font-size:13px;font-weight:600">${r.userName}</span>
           </div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${reqDur(r)}</div>
           ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
