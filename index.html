@@ -1237,7 +1237,7 @@ function renderHistTab(myReqs){
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
           <div class="req-type">${typeLabel(r.type)}</div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} '· '+reqDur(r)}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${'· '+reqDur(r)}</div>
           ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
@@ -1486,7 +1486,7 @@ function renderMyProfile(){
     ${sorted.map(r=>`<div class="req-item">
       <div>
         <div class="req-type">${typeLabel(r.type==='mysick'?'sick':r.type)}</div>
-        <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · \${reqDur(r)}</div>
+        <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${reqDur(r)}</div>
         ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
         ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
       </div>
@@ -1876,7 +1876,7 @@ function renderAdminRequests(){
             <span style="font-size:13px;font-weight:600">${r.userName}</span>
             <span class="badge b-admin" style="font-size:10px">${typeLabel(r.type)}</span>
           </div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · \${reqDur(r)}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${reqDur(r)}</div>
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
