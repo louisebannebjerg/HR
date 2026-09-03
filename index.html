@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<!-- saved from url=(0047)file:///C:/Users/kontor1ny/Downloads/index.html -->
-<html lang="da"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
-<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https://*.gstatic.com; connect-src &#39;self&#39; https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com;">
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HR Selvbetjening – Tandklinikken</title>
 <style>
@@ -149,30 +149,13 @@
 </head>
 <body>
 
-<div id="app"><div class="login-wrap">
-    <div class="login-card">
-      <div class="logo">Tandklinikken</div>
-      <div class="logo-sub">HR Selvbetjening</div>
-      
-      <div class="form-group">
-        <label class="form-label">E-mail</label>
-        <input type="email" id="l-email" placeholder="din@email.dk" autocomplete="email">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Kodeord</label>
-        <input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key===&#39;Enter&#39;)doLogin()">
-      </div>
-      <div id="l-err" style="font-size:13px;color:#a32020;margin-bottom:10px;min-height:18px"></div>
-      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Log ind</button>
-      <div style="font-size:12px;color:#aaa;margin-top:16px;text-align:center">Kontakt administrator hvis du har glemt dit kodeord.</div>
-    </div>
-  </div></div>
+<div id="app"></div>
 <div id="toast"></div>
 
 <!-- Firebase SDKs -->
-<script src="./HR Selvbetjening – Tandklinikken_files/firebase-app-compat.js.download"></script>
-<script src="./HR Selvbetjening – Tandklinikken_files/firebase-auth-compat.js.download"></script>
-<script src="./HR Selvbetjening – Tandklinikken_files/firebase-firestore-compat.js.download"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
 <script>
 // ============================================================
@@ -2948,6 +2931,5 @@ async function addSaldoAdjReq(empId, type, hours, note){
   await loadAllRequests();
   render();}
 </script>
-
-
-</body></html>
+</body>
+</html>
