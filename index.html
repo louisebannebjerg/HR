@@ -427,11 +427,15 @@ function calcStats(empId, reqs){
   // To-årig ferie (sep–aug)
   const curVac=currentVacYear();
   const nextVac=nextVacYear();
+  const prevVac=curVac-1;
   const vacReqs=r.filter(x=>x.type==='vacation'&&x.status==='approved'&&!x.archived);
   const vacUsedCur=vacReqs.filter(x=>getVacYearOf(x.from)===curVac).reduce((s,x)=>s+x.days,0);
   const vacUsedNext=vacReqs.filter(x=>getVacYearOf(x.from)===nextVac).reduce((s,x)=>s+x.days,0);
+  const vacUsedPrev=vacReqs.filter(x=>getVacYearOf(x.from)===prevVac).reduce((s,x)=>s+x.days,0);
   const vacLeftCur=empVacDays-vacUsedCur;
   const vacLeftNext=empVacDays-vacUsedNext;
+  const vacLeftPrev=empVacDays-vacUsedPrev;
+  const showPrevVac=vacLeftPrev>0;
 
   // To-årig 6. ferieuge (jan–dec)
   const curW6Year=currentW6Year();
@@ -458,7 +462,7 @@ function calcStats(empId, reqs){
 
   return{
     // To-årige felter
-    vacYearCur:curVac, vacYearNext:nextVac,
+    vacYearCur:curVac, vacYearNext:nextVac, vacYearPrev:prevVac, vacUsedPrev, vacLeftPrev, showPrevVac,
     vacUsedCur, vacLeftCur, vacUsedNext, vacLeftNext,
     w6YearCur:curW6Year, w6YearNext:nextW6YearV,
     w6UsedCur, w6LeftCur, w6BudgetCur,
@@ -527,23 +531,14 @@ async function deleteRequest(id){
 }
 
 // ============================================================
-// AUTH
+// AUTH + PIN
 // ============================================================
-
-const ADMIN_PIN_KEY = 'hr_admin_pin';
-let _adminPinVerified = false;
-let _adminInactivityTimer = null;
-const ADMIN_TIMEOUT_MS = 30 * 60 * 1000;
-
-function resetAdminInactivityTimer(){
-  if(!currentUser?.isAdmin) return;
-  clearTimeout(_adminInactivityTimer);
-  _adminInactivityTimer = setTimeout(()=>{_adminPinVerified=false;renderAdminPinPrompt();}, ADMIN_TIMEOUT_MS);
-}
-function startAdminActivityTracking(){
-  ['click','keydown','mousemove','touchstart'].forEach(ev=>{document.addEventListener(ev,resetAdminInactivityTimer,{passive:true});});
-  resetAdminInactivityTimer();
-}
+const ADMIN_PIN_KEY='hr_admin_pin';
+let _adminPinVerified=false;
+let _adminInactivityTimer=null;
+const ADMIN_TIMEOUT_MS=30*60*1000;
+function resetAdminInactivityTimer(){if(!currentUser?.isAdmin)return;clearTimeout(_adminInactivityTimer);_adminInactivityTimer=setTimeout(()=>{_adminPinVerified=false;renderAdminPinPrompt();},ADMIN_TIMEOUT_MS);}
+function startAdminActivityTracking(){['click','keydown','mousemove','touchstart'].forEach(ev=>{document.addEventListener(ev,resetAdminInactivityTimer,{passive:true});});resetAdminInactivityTimer();}
 function stopAdminActivityTracking(){clearTimeout(_adminInactivityTimer);}
 function renderAdminPinPrompt(err=''){
   const pin=localStorage.getItem(ADMIN_PIN_KEY);const isSetup=!pin;
@@ -555,22 +550,23 @@ function renderAdminPinPrompt(err=''){
     </div>
     ${isSetup?`<div style="font-size:12px;color:#888;text-align:center;margin-bottom:16px">Du opsætter nu din PIN første gang</div>`:''}
     ${err?`<div style="color:#a32020;font-size:13px;text-align:center;margin-bottom:12px">${err}</div>`:''}
-    <button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="${isSetup?'setupAdminPin()':'checkAdminPin()'}">${isSetup?'Opret PIN':'Bekræft'}</button>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="${isSetup?'setupAdminPin()':'checkAdminPin()'}">
+      ${isSetup?'Opret PIN':'Bekræft'}
+    </button>
     <button onclick="doLogout()" style="background:none;border:none;color:#aaa;font-size:12px;cursor:pointer;width:100%">Log ud</button>
   </div></div>`;
   setTimeout(()=>document.getElementById('pin-0')?.focus(),100);
 }
 function movePinFocus(i){
-  const val=document.getElementById('pin-'+i)?.value;
-  if(val&&i<3)document.getElementById('pin-'+(i+1))?.focus();
+  if(document.getElementById('pin-'+i)?.value&&i<3)document.getElementById('pin-'+(i+1))?.focus();
   const all=[0,1,2,3].map(j=>document.getElementById('pin-'+j)?.value||'').join('');
-  if(all.length===4){const pin=localStorage.getItem(ADMIN_PIN_KEY);if(!pin)setupAdminPin();else checkAdminPin();}
+  if(all.length===4){const p=localStorage.getItem(ADMIN_PIN_KEY);if(!p)setupAdminPin();else checkAdminPin();}
 }
 function pinKeyDown(e,i){
   if(e.key==='Backspace'&&!document.getElementById('pin-'+i)?.value&&i>0)document.getElementById('pin-'+(i-1))?.focus();
-  if(e.key==='Enter'){const pin=localStorage.getItem(ADMIN_PIN_KEY);if(!pin)setupAdminPin();else checkAdminPin();}
+  if(e.key==='Enter'){const p=localStorage.getItem(ADMIN_PIN_KEY);if(!p)setupAdminPin();else checkAdminPin();}
 }
-function getPinInput(){return [0,1,2,3].map(i=>document.getElementById('pin-'+i)?.value||'').join('');}
+function getPinInput(){return[0,1,2,3].map(i=>document.getElementById('pin-'+i)?.value||'').join('');}
 function setupAdminPin(){
   const pin=getPinInput();
   if(pin.length!==4||!/^\d{4}$/.test(pin)){renderAdminPinPrompt('PIN skal være 4 cifre');return;}
@@ -1107,6 +1103,11 @@ function renderSaldoTab(stats, myReqs){
   return`<div class="card">
     <div class="sec-title">Feriesaldo</div>
     <div class="info-box info-box-info" style="margin-bottom:14px">Ferieåret løber fra 1. september – 31. august. Du har ${VAC_DAYS} dage pr. ferieår.</div>
+    ${stats.showPrevVac?`<div style="margin-bottom:14px;padding:14px;background:#fff8f0;border-radius:10px;border:1px solid #f5d4a0">
+      <div style="font-size:13px;font-weight:600;color:#e08020;margin-bottom:10px">Ferieår ${fmtVacYear(stats.vacYearPrev)} <span style="font-size:11px;color:#aaa;font-weight:400">(afholdes til 31. dec ${stats.vacYearPrev+1})</span></div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsedPrev} dage</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.vacLeftPrev<0?'#a32020':'#e08020'}">${stats.vacLeftPrev} dage${stats.vacLeftPrev<0?' ⚠️ (minus)':''}</span></div>
+    </div>`:''}
     <div style="margin-bottom:18px;padding:14px;background:#faf9ff;border-radius:10px;border:1px solid #ede8fd">
       <div style="font-size:13px;font-weight:600;color:#6c63d4;margin-bottom:10px">Ferieår ${fmtVacYear(stats.vacYearCur)} <span style="font-size:11px;color:#aaa;font-weight:400">(1. sep ${stats.vacYearCur} – 31. aug ${stats.vacYearCur+1})</span></div>
       <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsedCur} dage</span></div>
@@ -1866,7 +1867,12 @@ async function renderAdminEmployees(){
     </div>
     <div class="card">
       <div class="sec-title">Saldo overblik</div>
-      <div style="font-size:11px;color:#6c63d4;font-weight:600;margin:4px 0 6px">Ferieår ${fmtVacYear(stats.vacYearCur)}</div>
+      ${stats.showPrevVac?`<div style="font-size:11px;color:#e08020;font-weight:600;margin:4px 0 6px">Ferieår ${fmtVacYear(stats.vacYearPrev)} <span style="font-weight:400;color:#aaa">(til 31. dec ${stats.vacYearPrev+1})</span></div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Ferie brugt</div><div class="stat-value">${stats.vacUsedPrev}</div><div class="stat-sub">af ${VAC_DAYS} dage</div></div>
+        <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:${stats.vacLeftPrev<0?'#a32020':'#e08020'}">${stats.vacLeftPrev}</div></div>
+      </div>`:''}
+      <div style="font-size:11px;color:#6c63d4;font-weight:600;margin:${stats.showPrevVac?'14px':'4px'} 0 6px">Ferieår ${fmtVacYear(stats.vacYearCur)}</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-label">Ferie brugt</div><div class="stat-value">${stats.vacUsedCur}</div><div class="stat-sub">af ${VAC_DAYS} dage</div></div>
         <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:${stats.vacLeftCur<0?'#a32020':'#2d7a1f'}">${stats.vacLeftCur}</div></div>
@@ -1938,6 +1944,30 @@ async function renderAdminEmployees(){
     <div class="card" id="admin-notes-card">
       <div class="sec-title">Private noter <span class="sec-sub">(kun synlige for dig)</span></div>
       <textarea id="admin-note-text" placeholder="Skriv noter om denne medarbejder..." style="width:100%;min-height:100px;resize:vertical;font-size:13px" onchange="saveAdminNote('${emp.id}',this.value)">${window._adminNote||''}</textarea>
+    </div>
+    <div class="card">
+      <div class="sec-title">Saldo-justering</div>
+      <div style="font-size:12px;color:#888;margin-bottom:14px">Nulstil eller juster saldo hvis en medarbejder har fået udbetalt minus via løn.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#f5f5f0;border-radius:10px;padding:12px">
+          <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:6px">6. ferieuge-saldo</div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px">Nuværende: <strong>${stats.w6LeftCur}t</strong></div>
+          <input type="number" id="adj-w6-val" step="0.25" placeholder="Ny saldo (timer)" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid #e0e0da;border-radius:7px;margin-bottom:6px;box-sizing:border-box">
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" style="flex:1;font-size:11px;padding:6px" onclick="adjustW6Saldo('${emp.id}',${stats.w6BudgetCur},${stats.w6UsedCur})">Sæt til tal</button>
+            <button class="btn" style="flex:1;font-size:11px;padding:6px;background:#fde8e8;color:#a32020;border:none" onclick="resetW6Saldo('${emp.id}',${stats.w6BudgetCur},${stats.w6UsedCur})">Nulstil</button>
+          </div>
+        </div>
+        <div style="background:#f5f5f0;border-radius:10px;padding:12px">
+          <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:6px">Afspadserings-saldo</div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px">Nuværende: <strong>${stats.flexBank!==null?stats.flexBank+'t':'N/A'}</strong></div>
+          <input type="number" id="adj-ot-val" step="0.25" placeholder="Ny saldo (timer)" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid #e0e0da;border-radius:7px;margin-bottom:6px;box-sizing:border-box">
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" style="flex:1;font-size:11px;padding:6px" onclick="adjustOTSaldo('${emp.id}',${stats.overtimeBank||0},${stats.flexHours||0})">Sæt til tal</button>
+            <button class="btn" style="flex:1;font-size:11px;padding:6px;background:#fde8e8;color:#a32020;border:none" onclick="resetOTSaldo('${emp.id}',${stats.overtimeBank||0},${stats.flexHours||0})">Nulstil</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="card">
       <div class="sec-title">Alle registreringer</div>
@@ -2910,6 +2940,47 @@ async function empDeleteReq(id){
 
 function openEmp(id){adminView='detail';adminEmpId=id;render()}
 function goBack(){adminView='list';adminEmpId=null;render()}
+
+// ============================================================
+// SALDO-JUSTERINGER
+// ============================================================
+async function adjustW6Saldo(empId,budget,used){
+  const val=parseFloat(document.getElementById('adj-w6-val')?.value);
+  if(isNaN(val)){toast('Indtast en værdi');return;}
+  const adj=Math.round((budget-val-used+used)*100)/100;
+  const newUsed=Math.round((budget-val)*100)/100;
+  const adjHours=Math.round((newUsed-used)*100)/100;
+  await addSaldoAdjReq(empId,'week6',adjHours,`Saldo-justering: sat til ${val}t`);
+  toast(`6. ferieuge-saldo sat til ${val}t ✓`);}
+
+async function resetW6Saldo(empId,budget,used){
+  if(!confirm('Nulstil 6. ferieuge-saldo til 0?'))return;
+  const adj=Math.round((budget-used)*100)/100;
+  await addSaldoAdjReq(empId,'week6',adj,'Nulstilling: saldo sat til 0');
+  toast('6. ferieuge-saldo nulstillet ✓');}
+
+async function adjustOTSaldo(empId,otBank,flexHours){
+  const val=parseFloat(document.getElementById('adj-ot-val')?.value);
+  if(isNaN(val)){toast('Indtast en værdi');return;}
+  const newFlex=Math.round((otBank-val)*100)/100;
+  const adjHours=Math.round((newFlex-flexHours)*100)/100;
+  await addSaldoAdjReq(empId,'flex',adjHours,`Saldo-justering: sat til ${val}t`);
+  toast(`Afspadserings-saldo sat til ${val}t ✓`);}
+
+async function resetOTSaldo(empId,otBank,flexHours){
+  if(!confirm('Nulstil afspadserings-saldo til 0?'))return;
+  const adjHours=Math.round((otBank-flexHours)*100)/100;
+  await addSaldoAdjReq(empId,'flex',adjHours,'Nulstilling: saldo sat til 0');
+  toast('Afspadserings-saldo nulstillet ✓');}
+
+async function addSaldoAdjReq(empId,type,hours,note){
+  const emp=EMPLOYEES.find(e=>e.id===empId);
+  const today=new Date().toISOString().slice(0,10);
+  const req={userId:empId,userName:emp?.name||empId,type,hours,days:0,from:today,to:today,status:'approved',note,isAdjustment:true,createdAt:new Date().toISOString()};
+  const ref=await db.collection('requests').add(req);
+  allRequests.push({id:ref.id,...req});
+  await loadAllRequests();
+  render();}
 </script>
 </body>
 </html>
