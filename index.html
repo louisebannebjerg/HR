@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="da">
-<head>
-<meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com;">
+<!-- saved from url=(0047)file:///C:/Users/kontor1ny/Downloads/index.html -->
+<html lang="da"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com; script-src &#39;self&#39; &#39;unsafe-inline&#39; &#39;unsafe-eval&#39; https://*.gstatic.com; connect-src &#39;self&#39; https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com;">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HR Selvbetjening – Tandklinikken</title>
 <style>
@@ -149,13 +149,30 @@
 </head>
 <body>
 
-<div id="app"></div>
+<div id="app"><div class="login-wrap">
+    <div class="login-card">
+      <div class="logo">Tandklinikken</div>
+      <div class="logo-sub">HR Selvbetjening</div>
+      
+      <div class="form-group">
+        <label class="form-label">E-mail</label>
+        <input type="email" id="l-email" placeholder="din@email.dk" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kodeord</label>
+        <input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key===&#39;Enter&#39;)doLogin()">
+      </div>
+      <div id="l-err" style="font-size:13px;color:#a32020;margin-bottom:10px;min-height:18px"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Log ind</button>
+      <div style="font-size:12px;color:#aaa;margin-top:16px;text-align:center">Kontakt administrator hvis du har glemt dit kodeord.</div>
+    </div>
+  </div></div>
 <div id="toast"></div>
 
 <!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="./HR Selvbetjening – Tandklinikken_files/firebase-app-compat.js.download"></script>
+<script src="./HR Selvbetjening – Tandklinikken_files/firebase-auth-compat.js.download"></script>
+<script src="./HR Selvbetjening – Tandklinikken_files/firebase-firestore-compat.js.download"></script>
 
 <script>
 // ============================================================
@@ -249,8 +266,6 @@ function toast(msg, dur=2500){
   setTimeout(()=>t.classList.remove('show'),dur);
 }
 function calcDays(a,b){if(!a||!b)return 0;return Math.max(0,Math.round((new Date(b)-new Date(a))/86400000)+1)}
-// Vis kun timer hvis der er timer, ellers dage
-function reqDur(r){if(r.hours)return r.hours+'t';if(r.days)return r.days+' dag'+(r.days!==1?'e':'');return'';}
 function fmt(d){
   if(!d)return'';
   // Ensure ISO format YYYY-MM-DD is parsed correctly
@@ -429,24 +444,35 @@ function calcStats(empId, reqs){
   // To-årig ferie (sep–aug)
   const curVac=currentVacYear();
   const nextVac=nextVacYear();
+  const prevVac=curVac-1; // Forrige ferieår — vises indtil nulstillet
   const vacReqs=r.filter(x=>x.type==='vacation'&&x.status==='approved'&&!x.archived);
   const vacUsedCur=vacReqs.filter(x=>getVacYearOf(x.from)===curVac).reduce((s,x)=>s+x.days,0);
   const vacUsedNext=vacReqs.filter(x=>getVacYearOf(x.from)===nextVac).reduce((s,x)=>s+x.days,0);
+  const vacUsedPrev=vacReqs.filter(x=>getVacYearOf(x.from)===prevVac).reduce((s,x)=>s+x.days,0);
   const vacLeftCur=empVacDays-vacUsedCur;
   const vacLeftNext=empVacDays-vacUsedNext;
+  const vacLeftPrev=empVacDays-vacUsedPrev;
+  // Vis forrige ferieår kun hvis der stadig er dage tilbage (ikke nulstillet)
+  const showPrevVac=vacLeftPrev>0;
 
   // To-årig 6. ferieuge (jan–dec)
   const curW6Year=currentW6Year();
   const nextW6YearV=nextW6Year();
+  const prevW6Year=curW6Year-1;
   const w6Reqs=r.filter(x=>x.type==='week6'&&x.status==='approved'&&!x.archived);
   const w6UsedCurRaw=w6Reqs.filter(x=>getW6YearOf(x.from)===curW6Year).reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
   const w6UsedNextRaw=w6Reqs.filter(x=>getW6YearOf(x.from)===nextW6YearV).reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
+  const w6UsedPrevRaw=w6Reqs.filter(x=>getW6YearOf(x.from)===prevW6Year).reduce((s,x)=>s+(x.hours||x.days*7.4||0),0);
   const w6BudgetCur=getEmpW6Budget(empDef,curW6Year);
   const w6BudgetNext=getEmpW6Budget(empDef,nextW6YearV);
+  const w6BudgetPrev=getEmpW6Budget(empDef,prevW6Year);
   const w6UsedCur=Math.round(w6UsedCurRaw*100)/100;
   const w6UsedNext=Math.round(w6UsedNextRaw*100)/100;
+  const w6UsedPrev=Math.round(w6UsedPrevRaw*100)/100;
   const w6LeftCur=Math.round((w6BudgetCur-w6UsedCurRaw)*100)/100;
   const w6LeftNext=Math.round((w6BudgetNext-w6UsedNextRaw)*100)/100;
+  const w6LeftPrev=Math.round((w6BudgetPrev-w6UsedPrevRaw)*100)/100;
+  const showPrevW6=w6BudgetPrev>0&&w6LeftPrev>0;
 
   // Sygdom & resten (uændret)
   const sickDays= r.filter(x=>x.type==='sick'&&!x.archived).reduce((s,x)=>s+x.days,0);
@@ -460,11 +486,13 @@ function calcStats(empId, reqs){
 
   return{
     // To-årige felter
-    vacYearCur:curVac, vacYearNext:nextVac,
+    vacYearCur:curVac, vacYearNext:nextVac, vacYearPrev:prevVac,
     vacUsedCur, vacLeftCur, vacUsedNext, vacLeftNext,
-    w6YearCur:curW6Year, w6YearNext:nextW6YearV,
+    vacUsedPrev, vacLeftPrev, showPrevVac,
+    w6YearCur:curW6Year, w6YearNext:nextW6YearV, w6YearPrev:prevW6Year,
     w6UsedCur, w6LeftCur, w6BudgetCur,
     w6UsedNext, w6LeftNext, w6BudgetNext,
+    w6UsedPrev, w6LeftPrev, w6BudgetPrev, showPrevW6,
     // Aliaser for bagudkompatibilitet — peger på nuværende år
     vacUsed:vacUsedCur, vacLeft:vacLeftCur,
     w6Used:w6UsedCur, w6Left:w6LeftCur, w6Budget:w6BudgetCur,
@@ -531,112 +559,6 @@ async function deleteRequest(id){
 // ============================================================
 // AUTH
 // ============================================================
-
-// Admin PIN — gemmes i localStorage
-const ADMIN_PIN_KEY = 'hr_admin_pin';
-let _adminPinVerified = false;
-let _adminInactivityTimer = null;
-const ADMIN_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutter
-
-function resetAdminInactivityTimer(){
-  if(!currentUser?.isAdmin) return;
-  clearTimeout(_adminInactivityTimer);
-  _adminInactivityTimer = setTimeout(()=>{
-    _adminPinVerified = false;
-    renderAdminPinPrompt();
-  }, ADMIN_TIMEOUT_MS);
-}
-
-function startAdminActivityTracking(){
-  ['click','keydown','mousemove','touchstart'].forEach(ev=>{
-    document.addEventListener(ev, resetAdminInactivityTimer, {passive:true});
-  });
-  resetAdminInactivityTimer();
-}
-
-function stopAdminActivityTracking(){
-  clearTimeout(_adminInactivityTimer);
-}
-
-function renderAdminPinPrompt(err=''){
-  const pin = localStorage.getItem(ADMIN_PIN_KEY);
-  const isSetup = !pin;
-  document.getElementById('app').innerHTML = `
-  <div class="login-wrap">
-    <div class="login-card">
-      <div class="logo">🔒 Administrator</div>
-      <div class="logo-sub">${isSetup ? 'Opret din 4-cifrede PIN-kode' : 'Indtast din 4-cifrede PIN-kode'}</div>
-      <div style="display:flex;gap:10px;justify-content:center;margin:24px 0" id="pin-boxes">
-        ${[0,1,2,3].map(i=>`<input id="pin-${i}" type="password" inputmode="numeric" maxlength="1"
-          style="width:52px;height:60px;text-align:center;font-size:24px;font-weight:700;border:2px solid #e0e0da;border-radius:12px;outline:none"
-          oninput="movePinFocus(${i})" onkeydown="pinKeyDown(event,${i})">`).join('')}
-      </div>
-      ${isSetup?`<div style="font-size:12px;color:#888;text-align:center;margin-bottom:16px">Du opsætter nu din PIN første gang</div>`:''}
-      ${err?`<div style="color:#a32020;font-size:13px;text-align:center;margin-bottom:12px">${err}</div>`:''}
-      <button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="${isSetup?'setupAdminPin()':'checkAdminPin()'}">
-        ${isSetup ? 'Opret PIN' : 'Bekræft'}
-      </button>
-      <button onclick="doLogout()" style="background:none;border:none;color:#aaa;font-size:12px;cursor:pointer;width:100%">Log ud</button>
-    </div>
-  </div>`;
-  setTimeout(()=>document.getElementById('pin-0')?.focus(), 100);
-}
-
-function movePinFocus(i){
-  const val = document.getElementById('pin-'+i)?.value;
-  if(val && i < 3) document.getElementById('pin-'+(i+1))?.focus();
-  // Auto-submit når alle 4 er udfyldt
-  const all = [0,1,2,3].map(j=>document.getElementById('pin-'+j)?.value||'').join('');
-  if(all.length===4){
-    const pin = localStorage.getItem(ADMIN_PIN_KEY);
-    if(!pin) setupAdminPin();
-    else checkAdminPin();
-  }
-}
-
-function pinKeyDown(e, i){
-  if(e.key==='Backspace'&&!document.getElementById('pin-'+i)?.value&&i>0){
-    document.getElementById('pin-'+(i-1))?.focus();
-  }
-  if(e.key==='Enter'){
-    const pin=localStorage.getItem(ADMIN_PIN_KEY);
-    if(!pin)setupAdminPin(); else checkAdminPin();
-  }
-}
-
-function getPinInput(){
-  return [0,1,2,3].map(i=>document.getElementById('pin-'+i)?.value||'').join('');
-}
-
-function setupAdminPin(){
-  const pin = getPinInput();
-  if(pin.length!==4||!/^\d{4}$/.test(pin)){renderAdminPinPrompt('PIN skal være 4 cifre');return;}
-  localStorage.setItem(ADMIN_PIN_KEY, pin);
-  _adminPinVerified = true;
-  startAdminActivityTracking();
-  render();
-}
-
-function checkAdminPin(){
-  const pin = getPinInput();
-  const stored = localStorage.getItem(ADMIN_PIN_KEY);
-  if(pin===stored){
-    _adminPinVerified = true;
-    startAdminActivityTracking();
-    render();
-  } else {
-    renderAdminPinPrompt('Forkert PIN-kode — prøv igen');
-  }
-}
-
-function resetAdminPin(){
-  if(!confirm('Er du sikker på at du vil nulstille din PIN-kode? Du skal oprette en ny næste gang du logger ind.'))return;
-  localStorage.removeItem(ADMIN_PIN_KEY);
-  _adminPinVerified = false;
-  toast('PIN nulstillet ✓');
-  doLogout();
-}
-
 auth.onAuthStateChanged(async user => {
   if(user){
     const emp = getEmpByEmail(user.email);
@@ -654,17 +576,9 @@ auth.onAuthStateChanged(async user => {
     await loadCustomEmployees();
     window._messages = await loadMessages(currentUser.id, currentUser.isAdmin);
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
-    // Vis PIN-prompt for admin hvis ikke verificeret endnu
-    if(emp.isAdmin && !_adminPinVerified){
-      renderAdminPinPrompt();
-    } else {
-      if(emp.isAdmin) startAdminActivityTracking();
-      render();
-    }
+    render();
   } else {
     currentUser = null;
-    _adminPinVerified = false;
-    stopAdminActivityTracking();
     renderLogin();
   }
 });
@@ -946,7 +860,7 @@ ${(()=>{const upcoming=getUpcomingEvents(180);return upcoming.length>0?`<div onc
       return sorted.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f5f5f0">
         <div>
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
-          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${'· '+reqDur(r)}</div>
+          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.hours?'· '+r.hours+'t':r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
         </div>
         <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
       </div>`).join('');
@@ -1147,7 +1061,7 @@ function renderAktivitet(myReqs){
       :sorted.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f5f5f0">
         <div>
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
-          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${'· '+reqDur(r)}</div>
+          <div style="font-size:12px;color:#aaa">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.hours?'· '+r.hours+'t':r.days?'· '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
         </div>
         <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
       </div>`).join('')}
@@ -1163,6 +1077,11 @@ function renderSaldoTab(stats, myReqs){
   return`<div class="card">
     <div class="sec-title">Feriesaldo</div>
     <div class="info-box info-box-info" style="margin-bottom:14px">Ferieåret løber fra 1. september – 31. august. Du har ${VAC_DAYS} dage pr. ferieår.</div>
+    ${stats.showPrevVac?`<div style="margin-bottom:14px;padding:14px;background:#fff8f0;border-radius:10px;border:1px solid #f5d4a0">
+      <div style="font-size:13px;font-weight:600;color:#e08020;margin-bottom:10px">Ferieår ${fmtVacYear(stats.vacYearPrev)} <span style="font-size:11px;color:#aaa;font-weight:400">(afholdes til 31. dec ${stats.vacYearPrev+1})</span></div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsedPrev} dage</span></div>
+      <div class="info-row"><span class="info-label">Tilbage</span><span class="info-val" style="color:${stats.vacLeftPrev<0?'#a32020':'#e08020'}">${stats.vacLeftPrev} dage${stats.vacLeftPrev<0?' ⚠️ (minus)':''}</span></div>
+    </div>`:''}
     <div style="margin-bottom:18px;padding:14px;background:#faf9ff;border-radius:10px;border:1px solid #ede8fd">
       <div style="font-size:13px;font-weight:600;color:#6c63d4;margin-bottom:10px">Ferieår ${fmtVacYear(stats.vacYearCur)} <span style="font-size:11px;color:#aaa;font-weight:400">(1. sep ${stats.vacYearCur} – 31. aug ${stats.vacYearCur+1})</span></div>
       <div class="info-row"><span class="info-label">Brugt</span><span class="info-val">${stats.vacUsedCur} dage</span></div>
@@ -1237,7 +1156,8 @@ function renderHistTab(myReqs){
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
           <div class="req-type">${typeLabel(r.type)}</div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${'· '+reqDur(r)}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${r.days?' · '+r.days+' dag'+(r.days!==1?'e':''):''}</div>
+          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
           ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
@@ -1287,12 +1207,7 @@ function renderPasswordTab(){
     <div class="form-group"><label class="form-label">Bekræft kodeord</label><input type="password" id="cp-confirm" placeholder="Gentag kodeord"></div>
     <div id="cp-err" style="font-size:13px;color:#a32020;margin-bottom:10px;min-height:18px"></div>
     <button class="btn btn-primary" onclick="doChangePassword()">Gem nyt kodeord</button>
-  </div>
-  ${currentUser?.isAdmin?`<div class="card" style="margin-top:14px">
-    <div class="sec-title">PIN-kode</div>
-    <div style="font-size:13px;color:#888;margin-bottom:14px">Din 4-cifrede PIN bruges til at beskytte administrator-adgang. Du bliver bedt om den ved login og efter 30 min inaktivitet.</div>
-    <button class="btn" style="background:#fde8e8;color:#a32020;border:none" onclick="resetAdminPin()">Nulstil PIN-kode</button>
-  </div>`:''}`;}
+  </div>`;}
 
 // ============================================================
 // ADMIN VIEWS
@@ -1486,7 +1401,8 @@ function renderMyProfile(){
     ${sorted.map(r=>`<div class="req-item">
       <div>
         <div class="req-type">${typeLabel(r.type==='mysick'?'sick':r.type)}</div>
-        <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${reqDur(r)}</div>
+        <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
+        ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
         ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
         ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
       </div>
@@ -1876,7 +1792,8 @@ function renderAdminRequests(){
             <span style="font-size:13px;font-weight:600">${r.userName}</span>
             <span class="badge b-admin" style="font-size:10px">${typeLabel(r.type)}</span>
           </div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${reqDur(r)}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
+          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
@@ -1919,7 +1836,12 @@ async function renderAdminEmployees(){
     </div>
     <div class="card">
       <div class="sec-title">Saldo overblik</div>
-      <div style="font-size:11px;color:#6c63d4;font-weight:600;margin:4px 0 6px">Ferieår ${fmtVacYear(stats.vacYearCur)}</div>
+      ${stats.showPrevVac?`<div style="font-size:11px;color:#e08020;font-weight:600;margin:4px 0 6px">Ferieår ${fmtVacYear(stats.vacYearPrev)} <span style="font-weight:400;color:#aaa">(afholdes til 31. dec ${stats.vacYearPrev+1})</span></div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Ferie brugt</div><div class="stat-value">${stats.vacUsedPrev}</div><div class="stat-sub">af ${VAC_DAYS} dage</div></div>
+        <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:${stats.vacLeftPrev<0?'#a32020':'#e08020'}">${stats.vacLeftPrev}</div></div>
+      </div>`:''}
+      <div style="font-size:11px;color:#6c63d4;font-weight:600;margin:${stats.showPrevVac?'14px':'4px'} 0 6px">Ferieår ${fmtVacYear(stats.vacYearCur)}</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-label">Ferie brugt</div><div class="stat-value">${stats.vacUsedCur}</div><div class="stat-sub">af ${VAC_DAYS} dage</div></div>
         <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:${stats.vacLeftCur<0?'#a32020':'#2d7a1f'}">${stats.vacLeftCur}</div></div>
@@ -1993,91 +1915,42 @@ async function renderAdminEmployees(){
       <textarea id="admin-note-text" placeholder="Skriv noter om denne medarbejder..." style="width:100%;min-height:100px;resize:vertical;font-size:13px" onchange="saveAdminNote('${emp.id}',this.value)">${window._adminNote||''}</textarea>
     </div>
     <div class="card">
-      <div class="sec-title">Registreringer – kalender</div>
-      ${renderEmpCalendar(empReqs, adminEmpId)}
-    </div>`;
-}
-
-function renderEmpCalendar(empReqs,empId){
-  const now=new Date();const key='ac_'+empId;
-  const co=window[key+'_o']||0;
-  const vd=new Date(now.getFullYear(),now.getMonth()+co,1);
-  const year=vd.getFullYear();const month=vd.getMonth();
-  const mn=vd.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
-  const fd=new Date(year,month,1).getDay();const so=fd===0?6:fd-1;
-  const dim=new Date(year,month+1,0).getDate();
-  const TC={vacation:{bg:'#ede8fd',tc:'#4a3ab5',label:'Ferie'},week6:{bg:'#d6f0e3',tc:'#1d9e75',label:'6. ferieuge'},fritvalg:{bg:'#fef3e0',tc:'#9a5f0a',label:'Fritvalg'},overtime:{bg:'#e8f0fd',tc:'#1a4fa8',label:'Overarb.'},flex:{bg:'#e8f5e0',tc:'#2d7a1f',label:'Afspad.'},sick:{bg:'#fde8e8',tc:'#a32020',label:'Sygedag'},'emp-other':{bg:'#f0f0eb',tc:'#555',label:'Andet'},other:{bg:'#f0f0eb',tc:'#555',label:'Andet'},course:{bg:'#fdf0e8',tc:'#a85020',label:'Kursus'}};
-  const dm={};
-  for(const r of empReqs){if(!r.from)continue;const fp=r.from.split('-');const tp=(r.to||r.from).split('-');const from=new Date(fp[0],parseInt(fp[1])-1,parseInt(fp[2]));const to=new Date(tp[0],parseInt(tp[1])-1,parseInt(tp[2]));let cur=new Date(from);while(cur<=to){if(cur.getFullYear()===year&&cur.getMonth()===month){const k=cur.getDate();if(!dm[k])dm[k]=[];dm[k].push(r);}cur.setDate(cur.getDate()+1);}}
-  const dn=['Uge','Man','Tir','Ons','Tor','Fre','Lor','Son'];
-  const today=new Date();
-  function getISOWeek(date){const d=new Date(date);d.setHours(0,0,0,0);d.setDate(d.getDate()+4-(d.getDay()||7));const y=new Date(d.getFullYear(),0,1);return Math.ceil(((d-y)/86400000+1)/7);}
-
-  // Byg en grid-struktur: række for række
-  // Første dag i måneden og offset
-  let rows=[];
-  let currentRow=[];
-  // Ugenummer for første uge
-  const firstDate=new Date(year,month,1);
-  let currentWeek=getISOWeek(firstDate);
-  // Tomme celler inden første dag
-  for(let i=0;i<so;i++) currentRow.push({empty:true});
-  for(let d=1;d<=dim;d++){
-    const regs=dm[d]||[];
-    const thisDate=new Date(year,month,d);
-    const dayOfWeek=(so+d-1)%7;
-    if(dayOfWeek===0&&currentRow.length>0){
-      rows.push({week:currentWeek,cells:[...currentRow]});
-      currentRow=[];
-      currentWeek=getISOWeek(thisDate);
-    }
-    currentRow.push({d,regs,date:thisDate});
-  }
-  // Sidste række — fyld op med tomme celler
-  while(currentRow.length<7) currentRow.push({empty:true});
-  if(currentRow.length>0) rows.push({week:currentWeek,cells:[...currentRow]});
-
-  const today2=new Date();
-  let cells=rows.map(row=>{
-    const weekCell=`<div style="display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#aaa;background:#f9f9f7;border-radius:6px">U${row.week}</div>`;
-    const dayCells=row.cells.map(cell=>{
-      if(cell.empty) return`<div></div>`;
-      const {d,regs,date}=cell;
-      const isToday=today2.getDate()===d&&today2.getMonth()===month&&today2.getFullYear()===year;
-      const dayOfWeek=date.getDay();
-      const isWe=dayOfWeek===0||dayOfWeek===6;
-      let bg=isToday?'#6c63d4':isWe?'#f5f5f0':'white';let bc=isToday?'#6c63d4':'#f0f0eb';let dc=isToday?'white':'#1a1a1a';
-      if(!isToday&&regs.length>0){const t=regs.find(r=>r.type==='vacation')||regs.find(r=>r.type==='sick')||regs[0];const c=TC[t.type]||TC['emp-other'];bg=c.bg;bc=c.tc;dc=c.tc;}
-      return`<div style="min-height:52px;border:1px solid ${bc};border-radius:8px;padding:5px 6px;background:${bg};cursor:${regs.length>0?'pointer':'default'}" ${regs.length>0?`onclick="window['${key}_d']=${d};window['${key}_m']=${month};window['${key}_y']=${year};render()"`:''}>
-        <div style="font-size:12px;font-weight:${regs.length>0||isToday?700:400};color:${dc};margin-bottom:2px">${d}</div>
-        ${regs.length>0&&!isToday?`<div style="font-size:9px;color:${dc};opacity:0.8;line-height:1.2">${[...new Set(regs.map(r=>TC[r.type]?.label||''))].slice(0,2).join(', ')}</div>`:''}
-      </div>`;
-    }).join('');
-    return weekCell+dayCells;
-  }).join('');
-
-  const rem2=0; // ikke nødvendigt da vi bygger rækker manuelt
-  const ut=[...new Set(empReqs.map(r=>r.type))];
-  const leg=ut.map(t=>{const c=TC[t]||TC['emp-other'];return`<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555"><div style="width:10px;height:10px;border-radius:50%;background:${c.tc}"></div>${c.label}</div>`;}).join('');
-  const sd=window[key+'_d'];const sm=window[key+'_m'];const sy=window[key+'_y'];
-  let dd='';
-  if(sd&&sm===month&&sy===year&&dm[sd]){const regs=dm[sd];dd=`<div style="margin-bottom:12px;padding:12px;background:#f5f3ff;border-radius:10px;border:1px solid #6c63d4"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div style="font-size:13px;font-weight:600;color:#6c63d4">${sd}. ${vd.toLocaleDateString('da-DK',{month:'long'})} ${sy}</div><button onclick="window['${key}_d']=null;render()" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:14px">&#x2715;</button></div>${regs.map(r=>{const c=TC[r.type]||TC['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px"><div><div style="font-size:13px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div><div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' - '+fmt(r.to):''} ${reqDur(r)?'- '+reqDur(r):''}</div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span><button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button></div></div>`;}).join('')}</div>`;}
-  return`${dd}<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-    <button onclick="window['${key}_o']=(window['${key}_o']||0)-1;window['${key}_d']=null;render()" style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px">&#8592;</button>
-    <div style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">${mn}</div>
-    <button onclick="window['${key}_o']=(window['${key}_o']||0)+1;window['${key}_d']=null;render()" ${co>=24?'disabled style="opacity:0.3;cursor:not-allowed;background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;font-size:16px"':'style="background:#f0f0eb;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px"'}>&#8594;</button>
-  </div>
-  <div style="display:grid;grid-template-columns:32px repeat(7,1fr);gap:3px;margin-bottom:6px">${dn.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:#aaa;padding:3px 0">${d}</div>`).join('')}</div>
-  <div style="display:grid;grid-template-columns:32px repeat(7,1fr);gap:3px">${cells}</div>
-  ${ut.length>0?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #f0f0eb">${leg}</div>`:''}
-  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0eb">
-    <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:10px;text-transform:capitalize">Registreringer i ${mn}</div>
-    ${Object.keys(dm).length===0
-      ?`<div style="font-size:12px;color:#aaa;text-align:center;padding:10px 0">Ingen registreringer denne måned</div>`
-      :Object.keys(dm).sort((a,b)=>a-b).map(d=>dm[d].map(r=>{const c=TC[r.type]||TC['emp-other'];return`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:${c.bg};border-radius:8px;margin-bottom:5px"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:12px;font-weight:700;color:${c.tc};min-width:28px">${d}.</div><div><div style="font-size:12px;font-weight:600;color:${c.tc}">${typeLabel(r.type)}</div><div style="font-size:11px;color:${c.tc};opacity:0.8">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} ${'· '+reqDur(r)}</div></div></div><div style="display:flex;gap:6px;align-items:center"><span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span><button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button></div></div>`;}).join('')).join('')}
-  </div>`;}
-
-
+      <div class="sec-title">Saldo-justering</div>
+      <div style="font-size:12px;color:#888;margin-bottom:14px">Nulstil eller juster saldo hvis en medarbejder har fået udbetalt minus via løn.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#f5f5f0;border-radius:10px;padding:12px">
+          <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:6px">6. ferieuge-saldo</div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px">Nuværende: <strong>${stats.w6LeftCur}t</strong></div>
+          <input type="number" id="adj-w6-val" step="0.25" placeholder="Ny saldo (timer)" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid #e0e0da;border-radius:7px;margin-bottom:6px;box-sizing:border-box">
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" style="flex:1;font-size:11px;padding:6px" onclick="adjustW6Saldo('${emp.id}',${stats.w6BudgetCur},${stats.w6UsedCur})">Sæt til tal</button>
+            <button class="btn" style="flex:1;font-size:11px;padding:6px;background:#fde8e8;color:#a32020;border:none" onclick="resetW6Saldo('${emp.id}',${stats.w6BudgetCur},${stats.w6UsedCur})">Nulstil</button>
+          </div>
+        </div>
+        <div style="background:#f5f5f0;border-radius:10px;padding:12px">
+          <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:6px">Afspadserings-saldo</div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px">Nuværende: <strong>${stats.flexBank!==null?stats.flexBank+'t':'N/A'}</strong></div>
+          <input type="number" id="adj-ot-val" step="0.25" placeholder="Ny saldo (timer)" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid #e0e0da;border-radius:7px;margin-bottom:6px;box-sizing:border-box">
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" style="flex:1;font-size:11px;padding:6px" onclick="adjustOTSaldo('${emp.id}',${stats.overtimeBank||0},${stats.flexHours||0})">Sæt til tal</button>
+            <button class="btn" style="flex:1;font-size:11px;padding:6px;background:#fde8e8;color:#a32020;border:none" onclick="resetOTSaldo('${emp.id}',${stats.overtimeBank||0},${stats.flexHours||0})">Nulstil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+      ${empReqs.length===0?'<div class="empty">Ingen registreringer</div>':empReqs.map(r=>`<div class="req-item">
+        <div>
+          <div class="req-type">${typeLabel(r.type)}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
+          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
+          ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+          <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
+        </div>
+      </div>`).join('')}
+    </div>`;}
 
   const allEmps=EMPLOYEES.filter(e=>!e.isAdmin);
   return`<div class="card">
@@ -2234,7 +2107,7 @@ function renderAdminSick(){
         ${selected.reqs.map(r=>`<div class="req-item">
           <div>
             <div style="font-size:13px;font-weight:500;color:#1a1a1a">${r.sickType==='barn'?'🧒 Barn syg':'🤒 Egen sygdom'}</div>
-            <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${reqDur(r)}</div>
+            <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
             ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
           </div>
           <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
@@ -2306,7 +2179,7 @@ function renderAdminOtherAbsence(){
             <div class="av" style="width:24px;height:24px;background:${bg};color:${tc};font-size:10px">${emp?.initials||'?'}</div>
             <span style="font-size:13px;font-weight:600">${r.userName}</span>
           </div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${reqDur(r)}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
           ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
@@ -3034,6 +2907,47 @@ async function empDeleteReq(id){
 
 function openEmp(id){adminView='detail';adminEmpId=id;render()}
 function goBack(){adminView='list';adminEmpId=null;render()}
+
+// ============================================================
+// SALDO-JUSTERINGER
+// ============================================================
+async function adjustW6Saldo(empId, budget, used){
+  const val=parseFloat(document.getElementById('adj-w6-val')?.value);
+  if(isNaN(val)){toast('Indtast en værdi');return;}
+  const newUsed=Math.round((budget-val)*100)/100;
+  const adjHours=Math.round((newUsed-used)*100)/100;
+  await addSaldoAdjReq(empId,'week6',adjHours,`Saldo-justering: sat til ${val}t`);
+  toast(`6. ferieuge-saldo sat til ${val}t ✓`);}
+
+async function resetW6Saldo(empId, budget, used){
+  if(!confirm('Nulstil 6. ferieuge-saldo til 0?'))return;
+  const adj=Math.round((budget-used)*100)/100;
+  await addSaldoAdjReq(empId,'week6',adj,'Nulstilling: saldo sat til 0');
+  toast('6. ferieuge-saldo nulstillet til 0 ✓');}
+
+async function adjustOTSaldo(empId, otBank, flexHours){
+  const val=parseFloat(document.getElementById('adj-ot-val')?.value);
+  if(isNaN(val)){toast('Indtast en værdi');return;}
+  const newFlex=Math.round((otBank-val)*100)/100;
+  const adjHours=Math.round((newFlex-flexHours)*100)/100;
+  await addSaldoAdjReq(empId,'flex',adjHours,`Saldo-justering: sat til ${val}t`);
+  toast(`Afspadserings-saldo sat til ${val}t ✓`);}
+
+async function resetOTSaldo(empId, otBank, flexHours){
+  if(!confirm('Nulstil afspadserings-saldo til 0?'))return;
+  const adjHours=Math.round((otBank-flexHours)*100)/100;
+  await addSaldoAdjReq(empId,'flex',adjHours,'Nulstilling: saldo sat til 0');
+  toast('Afspadserings-saldo nulstillet til 0 ✓');}
+
+async function addSaldoAdjReq(empId, type, hours, note){
+  const emp=EMPLOYEES.find(e=>e.id===empId);
+  const today=new Date().toISOString().slice(0,10);
+  const req={userId:empId,userName:emp?.name||empId,type,hours,days:0,from:today,to:today,status:'approved',note,isAdjustment:true,createdAt:new Date().toISOString()};
+  const ref=await db.collection('requests').add(req);
+  allRequests.push({id:ref.id,...req});
+  await loadAllRequests();
+  render();}
 </script>
-</body>
-</html>
+
+
+</body></html>
