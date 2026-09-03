@@ -1217,7 +1217,7 @@ async function empUpdateReq(id){
   const hoursEl=document.getElementById('edit-hours-'+id);
   const note=document.getElementById('edit-note-'+id)?.value||'';
   if(!from){toast('Vælg en dato');return;}
-  const days=countDays(from,to);
+  const days=calcDays(from,to);
   const updates={from,to,days,note,...(hoursEl?{hours:parseFloat(hoursEl.value)||0}:{})};
   await db.collection('requests').doc(id).update(updates);
   const idx=allRequests.findIndex(r=>r.id===id);
@@ -1361,9 +1361,6 @@ function openEmpFromSidebar(id){
 function renderMyProfile(){
   const myReqs=allRequests.filter(r=>r.userId===currentUser.id);
   const stats=calcStats(currentUser.id,allRequests);
-  const vacPct=Math.min(100,Math.round((stats.vacUsed/25)*100));
-  const w6Pct=Math.min(100,Math.round((stats.w6Used/5)*100));
-  const flexReqs=myReqs.filter(r=>r.type==='flex'&&r.status!=='rejected');
   const sorted=[...myReqs].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
 
   return`<div class="card">
