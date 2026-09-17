@@ -598,6 +598,8 @@ auth.onAuthStateChanged(async user => {
     await loadOvertimeList();
     await loadCustomEmployees();
     window._messages = await loadMessages(currentUser.id, currentUser.isAdmin);
+    seedNotifiedMessages();
+    initMsgNotifications();
     tab = emp.isAdmin ? 'admindash' : 'dashboard';
     if(emp.isAdmin&&!_adminPinVerified){renderAdminPinPrompt();}
     else{if(emp.isAdmin)startAdminActivityTracking();render();}
@@ -605,6 +607,7 @@ auth.onAuthStateChanged(async user => {
     currentUser = null;
     _adminPinVerified = false;
     stopAdminActivityTracking();
+    stopMsgNotifications();
     renderLogin();
   }
 });
@@ -894,6 +897,196 @@ ${(()=>{const upcoming=getUpcomingEvents(180);return upcoming.length>0?`<div onc
   </div>`;
 }
 
+// ============================================================
+// TIDSOMREGNER
+// ------------------------------------------------------------
+// Små knapper under timefelter, så 15/30/45 min ikke skal
+// regnes om i hovedet. 15 min = 0,25 · 30 min = 0,5 · 45 = 0,75
+// ============================================================
+function timeHintHtml(inputId){
+  const opts=[['15 min',0.25],['30 min',0.5],['45 min',0.75],['1 time',1]];
+  return'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:7px">'
+    +'<span style="font-size:11px;color:#aaa">Læg til:</span>'
+    +opts.map(o=>'<button type="button" onclick="addTime(\''+inputId+'\','+o[1]+')" style="font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid #e0e0da;background:white;color:#666;cursor:pointer;font-weight:500">+'+o[0]+'</button>').join('')
+    +'<button type="button" onclick="clearTime(\''+inputId+'\')" style="font-size:11px;padding:3px 9px;border-radius:20px;border:none;background:#f0f0eb;color:#888;cursor:pointer;font-weight:500">Nulstil</button>'
+    +'<span style="font-size:10px;color:#ccc;width:100%">15 min = 0,25 · 30 min = 0,5 · 45 min = 0,75</span>'
+    +'</div>';}
+function addTime(id,v){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const cur=parseFloat(el.value)||0;
+  el.value=Math.round((cur+v)*100)/100;
+  el.dispatchEvent(new Event('input',{bubbles:true}));}
+function clearTime(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.value='';
+  el.dispatchEvent(new Event('input',{bubbles:true}));}
+
+// ============================================================
+// ADMIN: REDIGER EN REGISTRERING
+// ------------------------------------------------------------
+// Bruges både i anmodningslisten og på medarbejderens side.
+// window._admEditId holder styr på hvilken der redigeres.
+// ============================================================
+function admToggleEdit(id){window._admEditId=window._admEditId===id?null:id;render();}
+function admEditForm(r){
+  if(window._admEditId!==r.id)return'';
+  const hasHours=r.hours!==null&&r.hours!==undefined;
+  const safeNote=String(r.note||'').replace(/"/g,'&quot;');
+  return'<div style="background:#f9f9f7;border-radius:10px;padding:12px;border:1px solid #e0e0da">'
+    +'<div style="font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Rediger registrering</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+    +'<div class="form-group" style="margin:0"><label class="form-label">Fra dato</label><input type="date" id="adm-edit-from-'+r.id+'" value="'+r.from+'"></div>'
+    +'<div class="form-group" style="margin:0"><label class="form-label">Til dato</label><input type="date" id="adm-edit-to-'+r.id+'" value="'+(r.to||r.from)+'"></div>'
+    +'</div>'
+    +(hasHours?'<div class="form-group" style="margin-bottom:8px"><label class="form-label">Timer</label><input type="number" id="adm-edit-hours-'+r.id+'" value="'+r.hours+'" min="0.25" step="0.25">'+timeHintHtml('adm-edit-hours-'+r.id)+'</div>':'')
+    +'<div class="form-group" style="margin-bottom:8px"><label class="form-label">Status</label><select id="adm-edit-status-'+r.id+'">'
+    +['approved','pending','rejected'].map(st=>'<option value="'+st+'"'+(r.status===st?' selected':'')+'>'+(st==='approved'?'Godkendt':st==='pending'?'Afventer':'Afvist')+'</option>').join('')
+    +'</select></div>'
+    +'<div class="form-group" style="margin-bottom:10px"><label class="form-label">Bemærkning</label><input type="text" id="adm-edit-note-'+r.id+'" value="'+safeNote+'"></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="btn btn-primary" style="flex:1" onclick="adminUpdateReq(\''+r.id+'\')">Gem ændringer</button>'
+    +'<button class="btn" style="flex:1;background:#f0f0eb" onclick="window._admEditId=null;render()">Annuller</button>'
+    +'</div></div>';}
+async function adminUpdateReq(id){
+  const from=document.getElementById('adm-edit-from-'+id)?.value;
+  const to=document.getElementById('adm-edit-to-'+id)?.value||from;
+  const hoursEl=document.getElementById('adm-edit-hours-'+id);
+  const statusEl=document.getElementById('adm-edit-status-'+id);
+  const note=document.getElementById('adm-edit-note-'+id)?.value||'';
+  if(!from){toast('Vælg en dato');return;}
+  if(to<from){toast('Slutdato skal være efter startdato');return;}
+  const updates={from,to,days:calcDays(from,to),note};
+  if(hoursEl)updates.hours=parseFloat(hoursEl.value)||0;
+  if(statusEl)updates.status=statusEl.value;
+  try{
+    await db.collection('requests').doc(id).update(updates);
+  }catch(e){toast('Kunne ikke gemme: '+e.message);return;}
+  const idx=allRequests.findIndex(r=>r.id===id);
+  if(idx>=0)allRequests[idx]={...allRequests[idx],...updates};
+  window._admEditId=null;
+  toast('Registrering opdateret ✓');
+  render();}
+
+// ============================================================
+// SYGEDAGS-POPUP PÅ ADMIN-OVERBLIKKET
+// ------------------------------------------------------------
+// Vises oven på siden (uden at gen-rendere hele appen) og kan
+// bladre måned for måned. Dage tælles kun med i den måned de
+// faktisk falder i, også for sygdom hen over et månedsskift.
+// ============================================================
+function overlapDays(from,to,ms,me){
+  const a=from>ms?from:ms;
+  const end=to||from;
+  const b=end<me?end:me;
+  if(a>b)return 0;
+  return calcDays(a,b);}
+function openSickPopup(offset){
+  window._sickPopOff=offset||0;
+  let el=document.getElementById('sick-popup');
+  if(!el){el=document.createElement('div');el.id='sick-popup';document.body.appendChild(el);}
+  el.innerHTML=sickPopupHtml();}
+function closeSickPopup(){const el=document.getElementById('sick-popup');if(el)el.remove();}
+function sickPopNav(d){openSickPopup((window._sickPopOff||0)+d);}
+function sickPopupHtml(){
+  const off=window._sickPopOff||0;
+  const now=new Date();
+  const view=new Date(now.getFullYear(),now.getMonth()+off,1);
+  const y=view.getFullYear(),m=view.getMonth();
+  const monthName=view.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
+  const dim=new Date(y,m+1,0).getDate();
+  const ms=dayStr(y,m,1),me=dayStr(y,m,dim);
+  const sick=allRequests.filter(r=>r.type==='sick'&&!r.archived&&r.from&&r.from<=me&&(r.to||r.from)>=ms);
+  const byEmp={};
+  sick.forEach(r=>{
+    const d=overlapDays(r.from,r.to,ms,me);
+    if(d<=0)return;
+    if(!byEmp[r.userId])byEmp[r.userId]={name:r.userName,own:0,barn:0,reqs:[]};
+    if(r.sickType==='barn')byEmp[r.userId].barn+=d;else byEmp[r.userId].own+=d;
+    byEmp[r.userId].reqs.push({r,d});
+  });
+  const ids=Object.keys(byEmp).sort((a,b)=>(byEmp[b].own+byEmp[b].barn)-(byEmp[a].own+byEmp[a].barn));
+  const total=ids.reduce((sum,id)=>sum+byEmp[id].own+byEmp[id].barn,0);
+
+  const body=ids.length===0
+    ?'<div style="text-align:center;padding:2rem;color:#aaa;font-size:13px">Ingen sygedage i '+monthName+'</div>'
+    :ids.map(id=>{
+      const g=byEmp[id];
+      const ci=empIndex(id);
+      const c=empColor(ci>=0?ci:0);
+      return'<div style="padding:12px 0;border-bottom:1px solid #f0f0eb">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+        +'<div style="display:flex;align-items:center;gap:10px">'
+        +'<div class="av" style="background:'+c.bg+';color:'+c.tc+'">'+(getEmpById(id)?.initials||'?')+'</div>'
+        +'<div><div style="font-size:14px;font-weight:600;color:#1a1a1a">'+g.name+'</div>'
+        +'<div style="font-size:11px;color:#aaa">'+(g.own>0?g.own+' dag'+(g.own!==1?'e':'')+' egen sygdom':'')+(g.own>0&&g.barn>0?' · ':'')+(g.barn>0?g.barn+' dag'+(g.barn!==1?'e':'')+' barn syg':'')+'</div></div>'
+        +'</div>'
+        +'<div style="font-size:16px;font-weight:700;color:#1a4fa8;white-space:nowrap">'+(g.own+g.barn)+'d</div>'
+        +'</div>'
+        +'<div style="margin-top:6px;padding-left:42px">'
+        +g.reqs.sort((a,b)=>a.r.from<b.r.from?-1:1).map(x=>
+          '<div style="font-size:11px;color:#888">'+(x.r.sickType==='barn'?'🧒':'🤒')+' '+fmt(x.r.from)+(x.r.from!==x.r.to&&x.r.to?' – '+fmt(x.r.to):'')+' · '+x.d+' dag'+(x.d!==1?'e':'')+(x.r.note?' · '+x.r.note:'')+'</div>').join('')
+        +'</div></div>';
+    }).join('');
+
+  return'<div onclick="if(event.target===this)closeSickPopup()" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px">'
+    +'<div style="background:white;border-radius:16px;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;padding:20px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+    +'<div style="font-size:15px;font-weight:600;color:#1a1a1a">Sygedage</div>'
+    +'<button class="btn-sm" onclick="closeSickPopup()">Luk</button>'
+    +'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px">'
+    +'<button class="btn-sm" onclick="sickPopNav(-1)">←</button>'
+    +'<div style="text-align:center;flex:1">'
+    +'<div style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">'+monthName+'</div>'
+    +'<div style="font-size:11px;color:#aaa">'+total+' sygedag'+(total!==1?'e':'')+' i alt</div>'
+    +'</div>'
+    +'<button class="btn-sm" onclick="sickPopNav(1)">→</button>'
+    +'</div>'
+    +body
+    +'</div></div>';}
+
+// ============================================================
+// BESKED-NOTIFIKATIONER
+// ------------------------------------------------------------
+// Tjekker for nye beskeder hvert 20. sekund. Der gives kun
+// besked én gang pr. besked, og siden gen-indlæses ikke mens
+// man er i gang med at skrive.
+// ============================================================
+let _msgPollTimer=null;
+function myMsgId(){return currentUser?(currentUser.isAdmin?'louise':currentUser.id):null;}
+function seedNotifiedMessages(){window._notifiedMsgIds=(window._messages||[]).map(m=>m.id);}
+function initMsgNotifications(){
+  try{
+    if(typeof Notification!=='undefined'&&Notification.permission==='default')Notification.requestPermission();
+  }catch(e){}
+  clearInterval(_msgPollTimer);
+  _msgPollTimer=setInterval(pollMessages,20000);}
+function stopMsgNotifications(){clearInterval(_msgPollTimer);_msgPollTimer=null;window._notifiedMsgIds=[];}
+async function pollMessages(){
+  if(!currentUser)return;
+  const me=myMsgId();
+  try{
+    const msgs=await loadMessages(currentUser.id,currentUser.isAdmin);
+    const known=window._notifiedMsgIds||[];
+    const fresh=msgs.filter(m=>m.toId===me&&!known.includes(m.id)&&!(m.readBy||[]).includes(me));
+    window._messages=msgs;
+    window._notifiedMsgIds=msgs.map(m=>m.id);
+    if(fresh.length===0)return;
+    const first=fresh[0];
+    const title=fresh.length>1?fresh.length+' nye beskeder':'Ny besked fra '+(first.fromName||'medarbejder');
+    try{
+      if(typeof Notification!=='undefined'&&Notification.permission==='granted'){
+        new Notification(title,{body:fresh.length>1?'':String(first.text||'').slice(0,120)});
+      }
+    }catch(e){}
+    toast(title);
+    const ae=document.activeElement;
+    const typing=ae&&(ae.tagName==='TEXTAREA'||ae.tagName==='INPUT');
+    if(!typing)render();
+  }catch(e){console.error('pollMessages error:',e);}}
+
 function setActTab(t){window._actTab=t;render();}
 
 function renderRegTab(){
@@ -916,7 +1109,8 @@ function renderRegTab(){
     </div>
     <div id="hours-field" style="display:none" class="form-group">
       <label class="form-label" id="hours-label">Timer</label>
-      <input type="number" id="rhours" min="0.5" max="24" step="0.5" placeholder="f.eks. 4" oninput="showOvertimePreview()">
+      <input type="number" id="rhours" min="0.25" max="24" step="0.25" placeholder="f.eks. 4" oninput="showOvertimePreview()">
+      ${timeHintHtml('rhours')}
     </div>
     <div id="emp-other-field" style="display:none" class="form-group">
       <label class="form-label">Beskriv fraværet</label>
@@ -1059,6 +1253,179 @@ async function sendEmpMessage(){
   toast('Besked sendt ✓');
   setTimeout(()=>render(),300);}
 
+// ============================================================
+// KALENDER
+// ------------------------------------------------------------
+// Fælles kalender-visning brugt både af medarbejderens
+// aktivitetsfane og af admin-detailvisningen for en medarbejder.
+//   renderCalendar(reqs, key, mode)
+//     reqs – registreringer der skal vises
+//     key  – unik nøgle så hver kalender husker sin egen måned
+//     mode – 'emp' (medarbejder) eller 'admin'
+// Måned og valgt dag gemmes i window._calOff / window._calSel,
+// så en almindelig render() bevarer tilstanden.
+// ============================================================
+const CAL_TYPES={
+  vacation:{bg:'#ede8fd',tc:'#4a3ab5',label:'Ferie'},
+  week6:{bg:'#d6f0e3',tc:'#1d9e75',label:'6. ferieuge'},
+  fritvalg:{bg:'#fef3e0',tc:'#9a5f0a',label:'Fritvalg'},
+  overtime:{bg:'#e8f0fd',tc:'#1a4fa8',label:'Overarbejde'},
+  flex:{bg:'#e8f5e0',tc:'#2d7a1f',label:'Afspadsering'},
+  sick:{bg:'#fde8e8',tc:'#a32020',label:'Sygdom'},
+  course:{bg:'#fdf0e8',tc:'#a85020',label:'Kursus'},
+  other:{bg:'#f0f0eb',tc:'#666666',label:'Andet fravær'},
+  'emp-other':{bg:'#f0f0eb',tc:'#666666',label:'Andet fravær'}
+};
+const CAL_PRIO=['vacation','week6','fritvalg','sick','course','other','emp-other','flex','overtime'];
+function calType(t){return CAL_TYPES[t]||CAL_TYPES['emp-other'];}
+function reqDur(r){
+  if(r.hours)return r.hours+'t';
+  if(r.days)return r.days+' dag'+(r.days!==1?'e':'');
+  return'';}
+function pad2(n){return(n<10?'0':'')+n;}
+function dayStr(y,m,d){return y+'-'+pad2(m+1)+'-'+pad2(d);}
+function isoWeekNo(y,m,d){
+  const dt=new Date(Date.UTC(y,m,d));
+  const wd=dt.getUTCDay()||7;
+  dt.setUTCDate(dt.getUTCDate()+4-wd);
+  const y0=new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+  return Math.ceil(((dt-y0)/86400000+1)/7);}
+function calOffset(key){return(window._calOff&&window._calOff[key])||0;}
+function calNav(key,delta){
+  window._calOff=window._calOff||{};
+  let n=calOffset(key)+delta;
+  if(n>24)n=24;
+  if(n<-36)n=-36;
+  window._calOff[key]=n;
+  window._calSel=window._calSel||{};
+  window._calSel[key]=null;
+  render();}
+function calToday(key){
+  window._calOff=window._calOff||{};
+  window._calOff[key]=0;
+  window._calSel=window._calSel||{};
+  window._calSel[key]=null;
+  render();}
+function calPick(key,ds){
+  window._calSel=window._calSel||{};
+  window._calSel[key]=window._calSel[key]===ds?null:ds;
+  render();}
+function calVisible(reqs){
+  return(reqs||[]).filter(r=>!r.archived&&r.status!=='rejected'&&r.from);}
+function regsOnDay(reqs,ds){
+  return calVisible(reqs).filter(r=>r.from<=ds&&(r.to||r.from)>=ds);}
+function renderCalendar(reqs,key,mode){
+  const off=calOffset(key);
+  const now=new Date();
+  const view=new Date(now.getFullYear(),now.getMonth()+off,1);
+  const y=view.getFullYear(),m=view.getMonth();
+  const monthName=view.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
+  const firstDay=new Date(y,m,1).getDay();
+  const start=firstDay===0?6:firstDay-1;
+  const dim=new Date(y,m+1,0).getDate();
+  const todayStr=dayStr(now.getFullYear(),now.getMonth(),now.getDate());
+  const sel=(window._calSel&&window._calSel[key])||null;
+  const dayNames=['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
+
+  let head='<div style="display:grid;grid-template-columns:26px repeat(7,1fr);gap:4px;margin-bottom:4px">'
+    +'<div></div>'
+    +dayNames.map(d=>'<div style="text-align:center;font-size:10px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">'+d+'</div>').join('')
+    +'</div>';
+
+  const totalCells=Math.ceil((start+dim)/7)*7;
+  let rows='';
+  for(let i=0;i<totalCells;i+=7){
+    const rowStart=new Date(y,m,1-start+i);
+    rows+='<div style="display:grid;grid-template-columns:26px repeat(7,1fr);gap:4px;margin-bottom:4px">'
+      +'<div style="display:flex;align-items:center;justify-content:center;font-size:10px;color:#ccc">'
+      +isoWeekNo(rowStart.getFullYear(),rowStart.getMonth(),rowStart.getDate())+'</div>';
+    for(let j=0;j<7;j++){
+      const cd=new Date(y,m,1-start+i+j);
+      const inMonth=cd.getMonth()===m&&cd.getFullYear()===y;
+      const ds=dayStr(cd.getFullYear(),cd.getMonth(),cd.getDate());
+      if(!inMonth){rows+='<div style="min-height:46px"></div>';continue;}
+      const regs=regsOnDay(reqs,ds);
+      const isToday=ds===todayStr;
+      const isSel=ds===sel;
+      const isWeekend=j>=5;
+      let bg=isWeekend?'#faf9f7':'white',border='#f0f0eb',txt='#1a1a1a',label='';
+      if(regs.length>0){
+        let top=regs[0];
+        for(const t of CAL_PRIO){const f=regs.find(r=>r.type===t);if(f){top=f;break;}}
+        const c=calType(top.type);
+        bg=c.bg;border=c.tc;txt=c.tc;
+        label=c.label+(regs.length>1?' +'+(regs.length-1):'');
+      }
+      if(isSel)border='#1a1a1a';
+      rows+='<div onclick="calPick(\''+key+'\',\''+ds+'\')" style="min-height:46px;border:'+(isSel?'2px':'1px')+' solid '+border+';border-radius:8px;padding:4px 5px;background:'+bg+';cursor:pointer;overflow:hidden">'
+        +'<div style="font-size:12px;font-weight:'+(isToday?'700':'500')+';color:'+txt+';'+(isToday?'display:inline-block;background:#6c63d4;color:white;border-radius:50%;width:18px;height:18px;line-height:18px;text-align:center;font-size:11px':'')+'">'+cd.getDate()+'</div>'
+        +(label?'<div style="font-size:8px;color:'+txt+';font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+'</div>':'')
+        +'</div>';
+    }
+    rows+='</div>';
+  }
+
+  const monthStart=dayStr(y,m,1),monthEnd=dayStr(y,m,dim);
+  const monthRegs=calVisible(reqs).filter(r=>r.from<=monthEnd&&(r.to||r.from)>=monthStart)
+    .sort((a,b)=>a.from<b.from?-1:a.from>b.from?1:0);
+
+  let details='';
+  if(sel){
+    const dayRegs=regsOnDay(reqs,sel);
+    details='<div style="margin-top:12px;padding:12px;background:#f9f9f7;border-radius:10px;border:1px solid #e0e0da">'
+      +'<div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:8px">'+fmt(sel)+'</div>';
+    if(dayRegs.length===0){
+      details+='<div style="font-size:12px;color:#aaa">Ingen registreringer denne dag</div>';
+    }else{
+      details+=dayRegs.map(r=>{
+        const c=calType(r.type);
+        let btn='';
+        if(mode==='admin')btn='<button class="btn-sm btn-danger" onclick="deleteReq(\''+r.id+'\')">Slet</button>';
+        else if(r.status==='pending')btn='<button class="btn-sm btn-danger" onclick="empDeleteReq(\''+r.id+'\')">Slet</button>';
+        return'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f0eb">'
+          +'<div><div style="font-size:13px;font-weight:500;color:'+c.tc+'">'+typeLabel(r.type)+(r.customNote?' – '+r.customNote:'')+'</div>'
+          +'<div style="font-size:11px;color:#aaa">'+fmt(r.from)+(r.from!==r.to&&r.to?' – '+fmt(r.to):'')+(reqDur(r)?' · '+reqDur(r):'')+'</div>'
+          +(r.note?'<div style="font-size:11px;color:#aaa;font-style:italic">"'+r.note+'"</div>':'')
+          +'</div>'
+          +'<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'
+          +'<span class="badge b-'+(r.type==='sick'?'sick':r.status)+'">'+(r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':'Afventer')+'</span>'+btn+'</div></div>';
+      }).join('');
+    }
+    details+='</div>';
+  }
+
+  const usedTypes=[...new Set(monthRegs.map(r=>r.type))];
+  const legend=usedTypes.length>0
+    ?'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">'
+      +usedTypes.map(t=>{const c=calType(t);
+        return'<div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:'+c.bg+';border:1px solid '+c.tc+';display:inline-block"></span><span style="font-size:10px;color:#888">'+c.label+'</span></div>';}).join('')
+      +'</div>'
+    :'';
+
+  const monthList=monthRegs.length>0
+    ?'<div style="margin-top:14px"><div style="font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Registreringer i '+monthName+'</div>'
+      +monthRegs.map(r=>{
+        const c=calType(r.type);
+        return'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f0">'
+          +'<div><div style="font-size:13px;font-weight:500;color:#1a1a1a">'+typeLabel(r.type)+(r.customNote?' – '+r.customNote:'')+'</div>'
+          +'<div style="font-size:11px;color:#aaa">'+fmt(r.from)+(r.from!==r.to&&r.to?' – '+fmt(r.to):'')+(reqDur(r)?' · '+reqDur(r):'')+'</div></div>'
+          +'<span style="font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px;background:'+c.bg+';color:'+c.tc+';white-space:nowrap">'+c.label+'</span></div>';
+      }).join('')
+      +'</div>'
+    :'<div style="margin-top:14px;font-size:12px;color:#aaa;text-align:center;padding:10px 0">Ingen registreringer i '+monthName+'</div>';
+
+  return'<div class="card">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px">'
+    +'<button class="btn-sm" onclick="calNav(\''+key+'\',-1)" '+(off<=-36?'disabled style="opacity:0.3"':'')+'>←</button>'
+    +'<div style="text-align:center;flex:1">'
+    +'<div style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">'+monthName+'</div>'
+    +(off!==0?'<div onclick="calToday(\''+key+'\')" style="font-size:11px;color:#6c63d4;cursor:pointer;font-weight:500">Gå til i dag</div>':'')
+    +'</div>'
+    +'<button class="btn-sm" onclick="calNav(\''+key+'\',1)" '+(off>=24?'disabled style="opacity:0.3"':'')+'>→</button>'
+    +'</div>'
+    +head+rows+legend+details+monthList
+    +'</div>';}
+
 function renderAktivitet(myReqs){
   const actTab=window._actTab||'all';
   const tabs=[
@@ -1077,7 +1444,7 @@ function renderAktivitet(myReqs){
   else if(actTab==='flex') filtered=myReqs.filter(r=>r.type==='flex');
   const sorted=[...filtered].sort((a,b)=>new Date(b.from)-new Date(a.from));
 
-  return`<div class="card">
+  return renderCalendar(myReqs,'emp','emp')+`<div class="card">
     <div class="sec-title">Aktivitetsoversigt</div>
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       ${tabs.map(t=>`<button onclick="setActTab('${t.key}')" style="font-size:12px;padding:5px 13px;border-radius:20px;border:1px solid ${actTab===t.key?'#6c63d4':'#e0e0da'};background:${actTab===t.key?'#6c63d4':'white'};color:${actTab===t.key?'white':'#666'};cursor:pointer;font-weight:500">${t.label}</button>`).join('')}
@@ -1386,7 +1753,8 @@ function renderMyProfile(){
     </div>
     <div id="myp-hours-wrap" style="display:none" class="form-group">
       <label class="form-label">Timer</label>
-      <input type="number" id="myp-hours" min="0.5" max="24" step="0.5" placeholder="f.eks. 4">
+      <input type="number" id="myp-hours" min="0.25" max="24" step="0.25" placeholder="f.eks. 4">
+      ${timeHintHtml('myp-hours')}
     </div>
     <div class="form-group"><label class="form-label">Bemærkning (valgfri)</label><textarea id="myp-note" placeholder="Eventuel kommentar..."></textarea></div>
     <button class="btn btn-primary" onclick="submitMyProfile()">Registrer</button>
@@ -1496,11 +1864,7 @@ async function renderAdminMessages(){
     if(!empGroups[otherId]) empGroups[otherId]={name:otherName,msgs:[]};
     empGroups[otherId].msgs.push(m);
   }
-  // Add any employee not yet messaged to allow starting new conversation
-  const allEmps = EMPLOYEES.filter(e=>!e.isAdmin&&e.canLogin);
-  for(const emp of allEmps){
-    if(!empGroups[emp.id]) empGroups[emp.id]={name:emp.name,msgs:[],noMessages:true};
-  }
+  // Kun aktive samtaler vises. Nye samtaler startes via "Ny besked" ovenfor.
 
   // Mark all as read
   for(const m of msgs){
@@ -1532,7 +1896,7 @@ async function renderAdminMessages(){
     </div>
     <button class="btn btn-primary" onclick="sendAdminNewMessage()">Send besked</button>
   </div>
-  `+empIds.map(empId=>{
+  `+(empIds.length===0?'<div class="card"><div class="empty">Ingen aktive samtaler endnu</div></div>':'')+empIds.map(empId=>{
     const ci=empIndex(empId);
     const {bg,tc}=empColor(ci>=0?ci:0);
     const group=empGroups[empId];
@@ -1718,7 +2082,7 @@ function renderAdminDash(){
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${todaySick.length}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">${todaySick.length>0?todaySick.map(r=>r.userName.split(' ')[0]).join(', '):'ingen syge'}</div>
     </div>
-    <div onclick="switchTab('sick')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#f5b8b8'" onmouseout="this.style.borderColor='#e5e5e0'">
+    <div onclick="openSickPopup(0)" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer" onmouseover="this.style.borderColor='#f5b8b8'" onmouseout="this.style.borderColor='#e5e5e0'">
       <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Sygedage denne måned</div>
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${monthSick.reduce((s,r)=>s+r.days,0)}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">på tværs af ${[...new Set(monthSick.map(r=>r.userId))].length} medarbejder${[...new Set(monthSick.map(r=>r.userId))].length!==1?'e':''}</div>
@@ -1813,15 +2177,16 @@ function renderAdminRequests(){
       const emp=getEmpById(r.userId);
       const ci=empIndex(r.userId);
       const {bg,tc}=empColor(ci>=0?ci:0);
-      return`<div class="req-item">
+      return`<div class="req-item" style="flex-direction:column;align-items:stretch;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
             <div class="av" style="width:24px;height:24px;background:${bg};color:${tc};font-size:10px">${emp?.initials||'?'}</div>
             <span style="font-size:13px;font-weight:600">${r.userName}</span>
             <span class="badge b-admin" style="font-size:10px">${typeLabel(r.type)}</span>
           </div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
-          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''}${reqDur(r)?' · '+reqDur(r):''}</div>
+          ${r.customNote?`<div class="req-dates" style="color:#534AB7">${r.customNote}</div>`:''}
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
@@ -1829,7 +2194,11 @@ function renderAdminRequests(){
             ?`<button class="btn-sm btn-approve" onclick="approveReq('${r.id}')">Godkend</button>
                <button class="btn-sm btn-reject" onclick="rejectReq('${r.id}')">Afvis</button>`
             :`<span class="badge b-${r.status}">${r.status==='approved'?'Godkendt':'Afvist'}</span>`}
+          <button class="btn-sm" style="background:#e8f0fd;color:#1a4fa8;border:none;cursor:pointer" onclick="admToggleEdit('${r.id}')">✏️</button>
+          <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
         </div>
+        </div>
+        ${admEditForm(r)}
       </div>`}).join('')}
   </div>`;}
 
@@ -1928,7 +2297,8 @@ async function renderAdminEmployees(){
       </div>
       <div id="admin-hours-field" style="display:none" class="form-group">
         <label class="form-label">Timer</label>
-        <input type="number" id="admin-rhours" min="0.5" max="24" step="0.5" placeholder="f.eks. 4" oninput="checkAdminWeek6Budget(document.getElementById('admin-emp-id')?.value)">
+        <input type="number" id="admin-rhours" min="0.25" max="24" step="0.25" placeholder="f.eks. 4" oninput="checkAdminWeek6Budget(document.getElementById('admin-emp-id')?.value)">
+        ${timeHintHtml('admin-rhours')}
       </div>
       <div id="admin-other-note-field" style="display:none" class="form-group">
         <label class="form-label">Beskriv fraværet</label>
@@ -1966,19 +2336,23 @@ async function renderAdminEmployees(){
         </div>
       </div>
     </div>
+    ${renderCalendar(empReqs,'ac_'+adminEmpId,'admin')}
     <div class="card">
       <div class="sec-title">Alle registreringer</div>
-      ${empReqs.length===0?'<div class="empty">Ingen registreringer</div>':empReqs.map(r=>`<div class="req-item">
+      ${empReqs.length===0?'<div class="empty">Ingen registreringer</div>':empReqs.map(r=>`<div class="req-item" style="flex-direction:column;align-items:stretch;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div>
-          <div class="req-type">${typeLabel(r.type)}</div>
-          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''} · ${r.days} dag${r.days!==1?'e':''}</div>
-          ${r.hours?`<div class="req-dates">${r.hours} timer</div>`:''}
+          <div class="req-type">${typeLabel(r.type)}${r.customNote?' – '+r.customNote:''}</div>
+          <div class="req-dates">${fmt(r.from)}${r.from!==r.to?' – '+fmt(r.to):''}${reqDur(r)?' · '+reqDur(r):''}</div>
           ${r.note?`<div class="req-note">"${r.note}"</div>`:''}
         </div>
-        <div style="display:flex;gap:6px;align-items:center">
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
           <span class="badge b-${r.type==='sick'?'sick':r.status}">${r.type==='sick'?'Sygedag':r.status==='approved'?'Godkendt':r.status==='rejected'?'Afvist':'Afventer'}</span>
+          <button class="btn-sm" style="background:#e8f0fd;color:#1a4fa8;border:none;cursor:pointer" onclick="admToggleEdit('${r.id}')">✏️</button>
           <button class="btn-sm btn-danger" onclick="deleteReq('${r.id}')">Slet</button>
         </div>
+        </div>
+        ${admEditForm(r)}
       </div>`).join('')}
     </div>`;}
 
