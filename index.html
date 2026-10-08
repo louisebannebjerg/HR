@@ -1623,6 +1623,7 @@ async function renderAdmin(){
   else if(tab==='otherfravær') content=renderAdminOtherAbsence();
   else if(tab==='manage') content=renderAdminManage();
   else if(tab==='yearend') content=renderYearEnd();
+  else if(tab==='payroll') content=renderPayroll();
   else if(tab==='myprofile') content=renderMyProfile();
   const isMobileAdmin = window.innerWidth <= 640;
   if(isMobileAdmin){
@@ -1633,6 +1634,7 @@ async function renderAdmin(){
       {id:'adminmessages', icon:'💬', label:'Beskeder'},
       {id:'sick', icon:'🤒', label:'Sygdom'},
       {id:'otherfravær', icon:'📋', label:'Fravær'},
+      {id:'payroll', icon:'💰', label:'Til løn'},
       {id:'yearend', icon:'📅', label:'Årsafs.'},
       {id:'manage', icon:'⚙️', label:'Admin'},
       {id:'myprofile', icon:'👤', label:'Profil'},
@@ -1672,6 +1674,7 @@ function renderAdminSidebar(){
     {id:'adminmessages',label:'💬 Beskeder'+(window._messages&&window._messages.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length>0?' ('+window._messages.filter(m=>m.toId==='louise'&&!(m.readBy||[]).includes('louise')).length+')':'')},
     {id:'sick',label:'😷 Sygdom'},
     {id:'otherfravær',label:'📋 Andet fravær'},
+    {id:'payroll',label:'💰 Til løn'+(payrollAll().filter(r=>payrollState(r)!=='done').length>0?' ('+payrollAll().filter(r=>payrollState(r)!=='done').length+')':'')},
     {id:'yearend',label:'📅 Årsafslutning'},
     {id:'manage',label:'⚙️ Administrer'},
     {id:'myprofile',label:'👤 Min profil'},
@@ -2623,6 +2626,135 @@ async function submitOtherAbsence(){
   allRequests.push(req);
   toast('Fravær registreret ✓');
   setTimeout(()=>render(),500);}
+
+// ============================================================
+// TIL LØN — afkrydsning af hvad der er noteret i lønsystemet
+// ------------------------------------------------------------
+// Hver registrering kan markeres som lønført. Vi gemmer samtidig
+// et "fingeraftryk" (payrollSig) af de felter der betyder noget
+// for lønnen. Bliver registreringen rettet bagefter, passer
+// fingeraftrykket ikke længere, og linjen vises som "ændret
+// efter lønføring" i stedet for som afsluttet.
+//
+// Felter på registreringen: payrolled (bool), payrolledAt (ISO),
+// payrolledSig (streng). Kun ferie, 6. ferieuge og fritvalg.
+// ============================================================
+const PAYROLL_TYPES=['vacation','week6','fritvalg'];
+function payrollSig(r){return [r.from,r.to||r.from,r.days||0,r.hours||0,r.status].join('|');}
+function payrollState(r){
+  if(!r.payrolled)return'pending';
+  if(r.payrolledSig&&r.payrolledSig!==payrollSig(r))return'changed';
+  return'done';}
+function payrollAll(){
+  return allRequests.filter(r=>PAYROLL_TYPES.includes(r.type)&&r.status==='approved'&&!r.archived&&r.from);}
+function payMonthLabel(key){
+  const y=parseInt(key.slice(0,4)),m=parseInt(key.slice(5,7))-1;
+  return new Date(y,m,1).toLocaleDateString('da-DK',{month:'long',year:'numeric'});}
+function setPayFilter(f){window._payFilter=f;render();}
+async function setPayrolled(id,on){
+  const r=allRequests.find(x=>x.id===id);
+  if(!r)return;
+  const upd=on
+    ?{payrolled:true,payrolledAt:new Date().toISOString(),payrolledSig:payrollSig(r)}
+    :{payrolled:false,payrolledAt:null,payrolledSig:null};
+  try{
+    await db.collection('requests').doc(id).update(upd);
+  }catch(e){toast('Kunne ikke gemme: '+e.message);return;}
+  Object.assign(r,upd);
+  toast(on?'Markeret som lønført ✓':'Markering fjernet');
+  render();}
+async function markMonthPayrolled(key){
+  const rows=payrollAll().filter(r=>r.from.slice(0,7)===key&&payrollState(r)!=='done');
+  if(rows.length===0){toast('Intet at markere');return;}
+  if(!confirm('Marker '+rows.length+' registrering'+(rows.length!==1?'er':'')+' i '+payMonthLabel(key)+' som lønført?'))return;
+  for(const r of rows){
+    const upd={payrolled:true,payrolledAt:new Date().toISOString(),payrolledSig:payrollSig(r)};
+    try{
+      await db.collection('requests').doc(r.id).update(upd);
+      Object.assign(r,upd);
+    }catch(e){console.error('markMonthPayrolled error:',e);}
+  }
+  toast(rows.length+' markeret som lønført ✓');
+  render();}
+function payrollYearLabel(r){
+  if(r.type==='week6')return'kalenderår '+fmtW6Year(getW6YearOf(r.from));
+  return'ferieår '+fmtVacYear(getVacYearOf(r.from));}
+function payrollRowHtml(r){
+  const st=payrollState(r);
+  const c=calType(r.type);
+  const ci=empIndex(r.userId);
+  const ac=empColor(ci>=0?ci:0);
+  const emp=getEmpById(r.userId);
+  const dates=fmt(r.from)+(r.to&&r.to!==r.from?' – '+fmt(r.to):'');
+  if(st==='changed'){
+    return'<div style="display:flex;align-items:center;gap:12px;background:#fef9e8;border:1px solid #f5dfa0;border-radius:10px;padding:11px 12px;margin:8px 0">'
+      +'<div class="av" style="width:28px;height:28px;font-size:10px;background:'+ac.bg+';color:'+ac.tc+'">'+(emp?.initials||'?')+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:13px;font-weight:600;color:#1a1a1a">'+r.userName+' <span class="badge" style="background:#fef3e0;color:#8a5508;margin-left:6px">Ændret efter lønføring</span></div>'
+      +'<div style="font-size:12px;color:#7a5c00;margin-top:2px">'+typeLabel(r.type)+' '+dates+(reqDur(r)?' · '+reqDur(r):'')+' er rettet, efter den blev lønført. Tjek lønsystemet og marker igen.</div>'
+      +'</div>'
+      +'<button class="btn-sm" style="background:white;border-color:#e0c98a;color:#7a5c00;flex-shrink:0" onclick="setPayrolled(\''+r.id+'\',true)">Marker igen</button>'
+      +'</div>';
+  }
+  return'<label style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f0;cursor:pointer">'
+    +'<input type="checkbox" style="width:18px;height:18px;accent-color:#6c63d4;cursor:pointer;flex-shrink:0;margin:0" '+(st==='done'?'checked':'')+' onchange="setPayrolled(\''+r.id+'\',this.checked)">'
+    +'<span class="av" style="width:28px;height:28px;font-size:10px;background:'+ac.bg+';color:'+ac.tc+'">'+(emp?.initials||'?')+'</span>'
+    +'<span style="flex:1;min-width:0">'
+    +'<span style="font-size:13px;font-weight:600;color:#1a1a1a">'+r.userName+'</span>'
+    +'<span class="badge" style="background:'+c.bg+';color:'+c.tc+';margin-left:8px">'+c.label+'</span>'
+    +'<span style="display:block;font-size:12px;color:#8a8a85;margin-top:2px">'+dates+' · '+payrollYearLabel(r)
+    +(st==='done'&&r.payrolledAt?' · lønført '+fmt(r.payrolledAt.slice(0,10)):'')
+    +(r.note?' · '+r.note:'')+'</span>'
+    +'</span>'
+    +'<span style="font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap">'+(reqDur(r)||'–')+'</span>'
+    +'</label>';}
+function renderPayroll(){
+  const filter=window._payFilter||'pending';
+  const all=payrollAll();
+  const openCount=all.filter(r=>payrollState(r)!=='done').length;
+  const changedCount=all.filter(r=>payrollState(r)==='changed').length;
+  let rows;
+  if(filter==='done')rows=all.filter(r=>payrollState(r)==='done');
+  else if(filter==='all')rows=all;
+  else rows=all.filter(r=>payrollState(r)!=='done');
+
+  const groups={};
+  rows.forEach(r=>{const k=r.from.slice(0,7);(groups[k]=groups[k]||[]).push(r);});
+  const keys=Object.keys(groups).sort().reverse();
+
+  const chips=[['pending','Mangler lønføring ('+openCount+')'],['done','Lønført'],['all','Alle']]
+    .map(c=>'<button onclick="setPayFilter(\''+c[0]+'\')" style="font-size:12px;padding:5px 13px;border-radius:20px;border:1px solid '+(filter===c[0]?'#6c63d4':'#e0e0da')+';background:'+(filter===c[0]?'#6c63d4':'white')+';color:'+(filter===c[0]?'white':'#666')+';cursor:pointer;font-weight:500">'+c[1]+'</button>').join('');
+
+  const head='<div class="card">'
+    +'<div class="sec-title">Til løn</div>'
+    +'<div class="info-box info-box-info">Vinge af når ferie, 6. ferieuge og fritvalg er noteret i lønsystemet. Kun godkendte registreringer vises. Rettes en registrering bagefter, fjernes fluebenet automatisk, og linjen dukker op igen med en markering.</div>'
+    +(changedCount>0?'<div class="info-box info-box-warning">'+changedCount+' registrering'+(changedCount!==1?'er er':' er')+' ændret, efter den blev lønført. Tjek lønsystemet for '+(changedCount!==1?'dem':'den')+'.</div>':'')
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+chips+'</div>'
+    +'</div>';
+
+  if(keys.length===0){
+    return head+'<div class="card"><div class="empty">'+(filter==='done'?'Ingen registreringer er lønført endnu':filter==='all'?'Ingen registreringer':'Alt er lønført ✓')+'</div></div>';
+  }
+
+  const body=keys.map(k=>{
+    const g=groups[k].sort((a,b)=>a.from<b.from?-1:a.from>b.from?1:0);
+    const days=g.filter(r=>!r.hours).reduce((sum,r)=>sum+(r.days||0),0);
+    const hours=Math.round(g.reduce((sum,r)=>sum+(r.hours||0),0)*100)/100;
+    const openInMonth=g.filter(r=>payrollState(r)!=='done').length;
+    const parts=[g.length+' registrering'+(g.length!==1?'er':'')];
+    if(days>0)parts.push(days+' dag'+(days!==1?'e':''));
+    if(hours>0)parts.push(hours+' timer');
+    return'<div class="card">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:1px solid #f0f0eb">'
+      +'<div><div style="font-size:14px;font-weight:600;color:#1a1a1a;text-transform:capitalize">'+payMonthLabel(k)+'</div>'
+      +'<div style="font-size:12px;color:#8a8a85;margin-top:2px">'+parts.join(' · ')+'</div></div>'
+      +(openInMonth>0?'<button class="btn-sm" style="background:#ede8fd;color:#4a3ab5;border-color:#c5b8f5;flex-shrink:0" onclick="markMonthPayrolled(\''+k+'\')">Marker hele måneden</button>':'<span class="badge b-approved">Lønført</span>')
+      +'</div>'
+      +g.map(payrollRowHtml).join('')
+      +'</div>';
+  }).join('');
+
+  return head+body;}
 
 function renderYearEnd(){
   const now=new Date();
