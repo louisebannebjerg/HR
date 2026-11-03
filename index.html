@@ -452,6 +452,15 @@ function calcStats(empId, reqs){
   const w6LeftCur=Math.round((w6BudgetCur-w6UsedCurRaw)*100)/100;
   const w6LeftNext=Math.round((w6BudgetNext-w6UsedNextRaw)*100)/100;
 
+  // Fritvalgskonto (følger ferieåret, intet budget — kun forbrug)
+  const fvReqs=r.filter(x=>x.type==='fritvalg'&&x.status==='approved'&&!x.archived);
+  const fvCur=fvReqs.filter(x=>getVacYearOf(x.from)===curVac);
+  const fvNext=fvReqs.filter(x=>getVacYearOf(x.from)===nextVac);
+  const fritvalgUsedCur=Math.round(fvCur.reduce((s2,x)=>s2+(x.hours||0),0)*100)/100;
+  const fritvalgUsedNext=Math.round(fvNext.reduce((s2,x)=>s2+(x.hours||0),0)*100)/100;
+  const fritvalgNoHoursCur=fvCur.filter(x=>!x.hours).length;
+  const fritvalgNoHoursNext=fvNext.filter(x=>!x.hours).length;
+
   // Sygdom & resten (uændret)
   const sickDays= r.filter(x=>x.type==='sick'&&!x.archived).reduce((s,x)=>s+x.days,0);
   const ownSickDays= r.filter(x=>x.type==='sick'&&!x.archived&&x.sickType!=='barn').reduce((s,x)=>s+x.days,0);
@@ -465,6 +474,7 @@ function calcStats(empId, reqs){
   return{
     // To-årige felter
     vacYearCur:curVac, vacYearNext:nextVac, vacYearPrev:prevVac, vacUsedPrev, vacLeftPrev, showPrevVac,
+    fritvalgUsedCur, fritvalgUsedNext, fritvalgNoHoursCur, fritvalgNoHoursNext,
     vacUsedCur, vacLeftCur, vacUsedNext, vacLeftNext,
     w6YearCur:curW6Year, w6YearNext:nextW6YearV,
     w6UsedCur, w6LeftCur, w6BudgetCur,
@@ -829,6 +839,14 @@ function renderDashboard(stats, myReqs){
       <div style="font-size:32px;font-weight:700;color:#1a4fa8;line-height:1">${stats.flexBank}</div>
       <div style="font-size:12px;color:#aaa;margin-top:6px">timer til gode</div>
       <div style="height:4px;background:#f0f0eb;border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;background:#1a4fa8;border-radius:2px;width:${stats.overtimeBank>0?Math.min(100,Math.round((stats.flexBank/stats.overtimeBank)*100)):0}%"></div></div>
+    </div>`:''}
+
+    ${hasFritvalg?`<div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#9a5f0a'" onmouseout="this.style.borderColor='#e5e5e0'">
+      <div style="font-size:11px;color:#aaa;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Fritvalgskonto</div>
+      <div style="font-size:11px;color:#9a5f0a;font-weight:600;margin-bottom:8px">${fmtVacYear(stats.vacYearCur)}</div>
+      <div style="font-size:32px;font-weight:700;color:#9a5f0a;line-height:1">${stats.fritvalgUsedCur}</div>
+      <div style="font-size:12px;color:#aaa;margin-top:6px">timer brugt</div>
+      ${stats.fritvalgNoHoursCur>0?`<div style="font-size:11px;color:#9a5f0a;margin-top:4px">+ ${stats.fritvalgNoHoursCur} uden timetal</div>`:''}
     </div>`:''}
 
     <div onclick="switchTab('saldo')" style="background:white;border:1px solid #e5e5e0;border-radius:14px;padding:18px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#e24b4a'" onmouseout="this.style.borderColor='#e5e5e0'">
@@ -1510,6 +1528,20 @@ function renderSaldoTab(stats, myReqs){
       <div style="font-size:11px;color:#aaa;margin-top:6px">Budget: ${stats.w6BudgetNext} timer</div>
     </div>
   </div>
+  ${FRITVALG_EMP.includes(currentUser.id)?`<div class="card">
+    <div class="sec-title">Fritvalgskonto</div>
+    <div class="info-box info-box-info" style="margin-bottom:14px">Fritvalgskontoen følger ferieåret (1. september – 31. august). Her ses, hvor mange timer der er brugt.</div>
+    <div style="margin-bottom:14px;padding:14px;background:#fffaf2;border-radius:10px;border:1px solid #f5dfa0">
+      <div style="font-size:13px;font-weight:600;color:#9a5f0a;margin-bottom:10px">Ferieår ${fmtVacYear(stats.vacYearCur)}</div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val" style="color:#9a5f0a">${stats.fritvalgUsedCur} timer</span></div>
+      ${stats.fritvalgNoHoursCur>0?`<div class="info-row"><span class="info-label">Uden timetal</span><span class="info-val" style="color:#aaa">${stats.fritvalgNoHoursCur} registrering${stats.fritvalgNoHoursCur!==1?'er':''}</span></div>`:''}
+    </div>
+    <div style="padding:14px;background:#fdf6ec;border-radius:10px;border:1px solid #f0e0c0">
+      <div style="font-size:13px;font-weight:600;color:#b07a2a;margin-bottom:10px">Ferieår ${fmtVacYear(stats.vacYearNext)}</div>
+      <div class="info-row"><span class="info-label">Brugt</span><span class="info-val" style="color:#b07a2a">${stats.fritvalgUsedNext} timer</span></div>
+      ${stats.fritvalgNoHoursNext>0?`<div class="info-row"><span class="info-label">Uden timetal</span><span class="info-val" style="color:#aaa">${stats.fritvalgNoHoursNext} registrering${stats.fritvalgNoHoursNext!==1?'er':''}</span></div>`:''}
+    </div>
+  </div>`:''}
   <div class="card">
     <div class="sec-title">${stats.hasSickBonus?"Sygdomsbonus":"Sygedage"}</div>
     ${stats.hasSickBonus?"<div class=\"info-box info-box-warning\">Bonusperiode: 1. december – 30. november. 1.000 kr. fratrækkes pr. sygedag (kun egen sygdom). Man kan ikke gå i minus.</div>":""}
@@ -2255,6 +2287,11 @@ async function renderAdminEmployees(){
         <div class="stat-card"><div class="stat-label">Ferie brugt</div><div class="stat-value">${stats.vacUsedNext}</div><div class="stat-sub">af ${VAC_DAYS} dage</div></div>
         <div class="stat-card"><div class="stat-label">Ferie tilbage</div><div class="stat-value" style="color:${stats.vacLeftNext<0?'#a32020':'#2d7a1f'}">${stats.vacLeftNext}</div></div>
       </div>
+      ${FRITVALG_EMP.includes(emp.id)?`<div style="font-size:11px;color:#9a5f0a;font-weight:600;margin:14px 0 6px">Fritvalgskonto ${fmtVacYear(stats.vacYearCur)}</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Timer brugt</div><div class="stat-value" style="color:#9a5f0a">${stats.fritvalgUsedCur}t</div>${stats.fritvalgNoHoursCur>0?`<div class="stat-sub">+ ${stats.fritvalgNoHoursCur} uden timetal</div>`:''}</div>
+        <div class="stat-card"><div class="stat-label">Næste ferieår</div><div class="stat-value" style="color:#b07a2a">${stats.fritvalgUsedNext}t</div>${stats.fritvalgNoHoursNext>0?`<div class="stat-sub">+ ${stats.fritvalgNoHoursNext} uden timetal</div>`:''}</div>
+      </div>`:''}
       <div style="font-size:11px;color:#1d9e75;font-weight:600;margin:14px 0 6px">6. ferieuge ${fmtW6Year(stats.w6YearCur)}</div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-label">Brugt</div><div class="stat-value">${stats.w6UsedCur}t</div><div class="stat-sub">af ${stats.w6BudgetCur}t</div></div>
