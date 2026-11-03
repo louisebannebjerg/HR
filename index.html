@@ -260,6 +260,8 @@ function fmt(d){
   }
   return new Date(d).toLocaleDateString('da-DK',{day:'2-digit',month:'short',year:'numeric'});}
 function typeLabel(t){return{vacation:'Ferie',week6:'6. ferieuge',fritvalg:'Fritvalgskonto',overtime:'Overarbejde',flex:'Afspadsering',sick:'Sygedag','emp-other':'Andet fravær'}[t]||t}
+// Typer der kan registreres i timer i stedet for hele dage
+const HOURS_TYPES=['overtime','flex','week6','fritvalg'];
 // ============================================================
 // FERIE-ÅR & 6. FERIEUGE-ÅR HELPERS
 // ------------------------------------------------------------
@@ -932,7 +934,9 @@ function clearTime(id){
 function admToggleEdit(id){window._admEditId=window._admEditId===id?null:id;render();}
 function admEditForm(r){
   if(window._admEditId!==r.id)return'';
-  const hasHours=r.hours!==null&&r.hours!==undefined;
+  // Vis timefeltet for alle typer der KAN have timer — også når der ikke
+  // er gemt et timetal endnu, så gamle registreringer kan rettes bagud.
+  const hasHours=HOURS_TYPES.includes(r.type)||(r.hours!==null&&r.hours!==undefined);
   const safeNote=String(r.note||'').replace(/"/g,'&quot;');
   return'<div style="background:#f9f9f7;border-radius:10px;padding:12px;border:1px solid #e0e0da">'
     +'<div style="font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Rediger registrering</div>'
@@ -940,7 +944,7 @@ function admEditForm(r){
     +'<div class="form-group" style="margin:0"><label class="form-label">Fra dato</label><input type="date" id="adm-edit-from-'+r.id+'" value="'+r.from+'"></div>'
     +'<div class="form-group" style="margin:0"><label class="form-label">Til dato</label><input type="date" id="adm-edit-to-'+r.id+'" value="'+(r.to||r.from)+'"></div>'
     +'</div>'
-    +(hasHours?'<div class="form-group" style="margin-bottom:8px"><label class="form-label">Timer</label><input type="number" id="adm-edit-hours-'+r.id+'" value="'+r.hours+'" min="0.25" step="0.25">'+timeHintHtml('adm-edit-hours-'+r.id)+'</div>':'')
+    +(hasHours?'<div class="form-group" style="margin-bottom:8px"><label class="form-label">Timer <span style="font-weight:400;color:#aaa">(tom = vis antal dage i stedet)</span></label><input type="number" id="adm-edit-hours-'+r.id+'" value="'+(r.hours||'')+'" min="0.25" step="0.25" placeholder="f.eks. 5,75">'+timeHintHtml('adm-edit-hours-'+r.id)+'</div>':'')
     +'<div class="form-group" style="margin-bottom:8px"><label class="form-label">Status</label><select id="adm-edit-status-'+r.id+'">'
     +['approved','pending','rejected'].map(st=>'<option value="'+st+'"'+(r.status===st?' selected':'')+'>'+(st==='approved'?'Godkendt':st==='pending'?'Afventer':'Afvist')+'</option>').join('')
     +'</select></div>'
@@ -958,7 +962,7 @@ async function adminUpdateReq(id){
   if(!from){toast('Vælg en dato');return;}
   if(to<from){toast('Slutdato skal være efter startdato');return;}
   const updates={from,to,days:calcDays(from,to),note};
-  if(hoursEl)updates.hours=parseFloat(hoursEl.value)||0;
+  if(hoursEl){const h=parseFloat(hoursEl.value);updates.hours=(h>0)?h:null;}
   if(statusEl)updates.status=statusEl.value;
   try{
     await db.collection('requests').doc(id).update(updates);
