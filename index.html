@@ -1205,7 +1205,7 @@ async function submitReq(){
     }
   }
   const req={userId:currentUser.id,userName:currentUser.name,type,from,to:effectiveTo,days,
-    hours:(type==='overtime'||type==='flex'||type==='week6')?hours:null,note,
+    hours:(type==='overtime'||type==='flex'||type==='week6'||type==='fritvalg')?hours:null,note,
     ...(type==='emp-other'&&empOtherText?{customNote:empOtherText}:{}),
     status:'pending',
     createdAt:new Date().toISOString()};
@@ -1846,7 +1846,7 @@ async function submitMyProfile(){
     userId:currentUser.id,userName:currentUser.name,
     type:isSick?'sick':type,
     from,to:effectiveTo,days,
-    hours:(type==='overtime'||type==='flex'||type==='week6')?hours:null,
+    hours:(type==='overtime'||type==='flex'||type==='week6'||type==='fritvalg')?hours:null,
     note,
     ...(customNote?{customNote}:{}),
     status:'approved',
@@ -2423,7 +2423,7 @@ async function adminSubmitReq(empId){
   if(new Date(to)<new Date(from)){toast('Slutdato skal være efter startdato');return;}
   const days=calcDays(from,to);
   const req={userId:empId,userName:emp.name,type,from,to,days,
-    hours:(type==='overtime'||type==='flex'||type==='week6')?hours:null,note,
+    hours:(type==='overtime'||type==='flex'||type==='week6'||type==='fritvalg')?hours:null,note,
     status:'approved',createdAt:new Date().toISOString(),registeredByAdmin:true};
   await saveRequest(req);
   allRequests.push(req);
